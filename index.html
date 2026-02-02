@@ -69,6 +69,28 @@
         #info.detected {
             background: rgba(46,125,50,0.9);
         }
+        
+        /* LOG VISIBLE À L'ÉCRAN */
+        #debug-log {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            color: #0f0;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-family: monospace;
+            max-width: 200px;
+            max-height: 150px;
+            overflow-y: auto;
+            z-index: 999;
+            display: none;
+        }
+        
+        #debug-log.show {
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -77,6 +99,9 @@
         <h2>🌳 WoodWideWeb AR</h2>
         <p style="margin-top: 10px; font-size: 14px; opacity: 0.9;">Initialisation...</p>
     </div>
+    
+    <!-- LOG VISIBLE -->
+    <div id="debug-log"></div>
     
     <div id="info">📱 Pointez vers votre image carrée</div>
     
@@ -103,7 +128,6 @@
         <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
         
         <a-entity mindar-image-target="targetIndex: 0">
-            <!-- Vidéo carrée collée sur image carrée -->
             <a-video 
                 src="#vid"
                 position="0 0 0"
@@ -117,80 +141,94 @@
     </a-scene>
 
     <script>
-        console.log('🌳 WoodWideWeb AR - Format carré optimisé');
+        console.log('🌳 WoodWideWeb AR - Version finale avec logs');
         
         const loading = document.getElementById('loading');
         const info = document.getElementById('info');
+        const debugLog = document.getElementById('debug-log');
         const video = document.getElementById('vid');
         const scene = document.querySelector('a-scene');
         const target = document.querySelector('[mindar-image-target]');
         
-        // On attend SEULEMENT que la scène soit prête
-        // (la vidéo fonctionne même si les événements ne se déclenchent pas)
+        let logLines = [];
+        
+        // Fonction pour afficher les logs à l'écran
+        function screenLog(message) {
+            console.log(message);
+            logLines.push(message);
+            if (logLines.length > 8) logLines.shift(); // Garder max 8 lignes
+            debugLog.innerHTML = logLines.join('<br>');
+        }
+        
         scene.addEventListener('loaded', () => {
-            console.log('✅ Scène chargée - Ouverture de l\'AR');
+            screenLog('✅ Scène prête');
             
-            // Attendre juste 2 secondes pour laisser la vidéo commencer à charger
             setTimeout(() => {
                 loading.classList.add('hide');
                 info.classList.add('show');
-                console.log('✅ AR prête !');
+                debugLog.classList.add('show');
+                screenLog('✅ AR active');
             }, 2000);
         });
         
-        // Log vidéo (pour info, mais n'affecte pas l'ouverture)
         video.addEventListener('loadeddata', () => {
-            console.log('✅ Vidéo chargée');
+            screenLog('✅ Vidéo chargée');
+            screenLog(`⏱️ Durée: ${video.duration.toFixed(1)}s`);
         });
         
-        video.addEventListener('error', () => {
-            console.log('⚠️ Événement erreur vidéo (mais peut fonctionner quand même)');
-        });
-        
-        // Détection d'image
+        // Détection
         if (target) {
             target.addEventListener('targetFound', () => {
-                console.log('🎯 Image carrée détectée - Lancement vidéo');
+                screenLog('🎯 Image détectée');
                 info.textContent = '🎯 Image détectée !';
                 info.classList.add('detected');
                 
-                // Lancer la vidéo
                 video.play().then(() => {
-                    console.log('▶️ Vidéo en lecture');
-                }).catch((err) => {
-                    console.log('⚠️ Autoplay bloqué - tap requis');
-                    info.textContent = '👆 Tapez pour lancer la vidéo';
+                    screenLog('▶️ Vidéo lancée');
+                }).catch(() => {
+                    screenLog('⚠️ Tap requis');
+                    info.textContent = '👆 Tapez pour lancer';
                     
                     document.body.addEventListener('click', () => {
-                        video.play().then(() => {
-                            console.log('▶️ Vidéo lancée après tap');
-                            info.textContent = '🎯 Image détectée !';
-                        });
+                        video.play();
+                        screenLog('▶️ Lancée après tap');
+                        info.textContent = '🎯 Image détectée !';
                     }, { once: true });
                 });
             });
             
             target.addEventListener('targetLost', () => {
-                console.log('📍 Image perdue - Pause vidéo');
-                info.textContent = '📱 Pointez vers votre image carrée';
+                screenLog('📍 Image perdue');
+                info.textContent = '📱 Pointez vers votre image';
                 info.classList.remove('detected');
                 video.pause();
             });
         }
         
-        // Log de progression vidéo pour vérifier qu'elle joue entièrement
+        // Progression vidéo (tous les 25%)
+        let lastPercent = 0;
         video.addEventListener('timeupdate', () => {
-            if (video.currentTime > 0) {
-                const percent = (video.currentTime / video.duration * 100).toFixed(0);
-                // Ne log que tous les 10%
-                if (percent % 10 === 0) {
-                    console.log(`📹 Lecture: ${percent}%`);
+            if (video.currentTime > 0 && video.duration > 0) {
+                const percent = Math.floor(video.currentTime / video.duration * 100);
+                
+                // Afficher à 25%, 50%, 75%, 100%
+                if (percent >= 25 && lastPercent < 25) {
+                    screenLog('📹 25%');
+                } else if (percent >= 50 && lastPercent < 50) {
+                    screenLog('📹 50%');
+                } else if (percent >= 75 && lastPercent < 75) {
+                    screenLog('📹 75%');
+                } else if (percent >= 99 && lastPercent < 99) {
+                    screenLog('📹 100% ✅');
                 }
+                
+                lastPercent = percent;
             }
         });
         
         video.addEventListener('ended', () => {
-            console.log('🔄 Vidéo terminée - Redémarrage (loop)');
+            screenLog('🔄 Redémarrage');
+            lastPercent = 0;
         });
     </script>
 </body>
