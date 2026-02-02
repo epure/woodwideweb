@@ -185,3 +185,94 @@
     </script>
 </body>
 </html>
+```
+
+---
+
+## 📝 UPLOADEZ CETTE VERSION FINALE
+
+1. **GitHub** : https://github.com/epure/woodwideweb
+2. **index.html** > ✏️
+3. **Ctrl+A** > Delete
+4. **Collez** le code ci-dessus
+5. **Commit** : `Final version with Cloudinary video`
+6. **⏳ Attendez 2-3 minutes**
+7. **Testez** : https://epure.github.io/woodwideweb/
+
+---
+
+## ✅ CE QUI A CHANGÉ
+
+- ✅ **Mind AR 1.1.5** (version stable qui fonctionne)
+- ✅ **Votre vidéo Cloudinary** au lieu de la vidéo de test
+- ✅ **Sans paramètres d'optimisation** (w_1280, q_auto, etc.) qui causaient problème
+- ✅ **crossorigin="anonymous"** ajouté
+- ✅ **Interface de chargement** propre
+
+---
+
+## 🎯 COMPORTEMENT ATTENDU
+
+### **Phase 1 : Chargement (2-3 secondes)**
+```
+Écran vert
+"🌳 WoodWideWeb AR"
+"Chargement..."
+```
+
+### **Phase 2 : Prêt**
+```
+Écran disparaît
+Caméra visible
+"📱 Pointez vers votre image"
+```
+
+### **Phase 3 : Détection**
+```
+Message vert : "🎯 Image détectée !"
+Vidéo WoodWideWeb apparaît en AR
+```
+
+---
+
+## 🆘 SI LA VIDÉO CLOUDINARY NE CHARGE PAS
+
+**Testez l'URL directement dans le navigateur :**
+```
+https://res.cloudinary.com/dmgx02nlp/video/upload/v1770030665/WoodWideWeb_01_kj0sqr.mp4
+```
+
+**Si la vidéo ne se lit pas :**
+- Vérifiez qu'elle est publique sur Cloudinary
+- Essayez avec les paramètres d'optimisation :
+```
+  /w_1280/v1770030665/
+```
+
+---
+
+## 🎉 FÉLICITATIONS !
+
+**Vous avez créé votre première expérience WebAR !** 
+
+**Votre URL finale :**
+```
+https://epure.github.io/woodwideweb/
+```
+
+**Pour partager :**
+- Envoyez cette URL par SMS, email, QR code
+- Les gens ouvrent sur mobile
+- Pointent vers votre image
+- La vidéo apparaît en AR !
+
+---
+
+## 📋 RÉCAPITULATIF DE VOTRE PROJET
+```
+✅ Repository GitHub : github.com/epure/woodwideweb
+✅ Site public : epure.github.io/woodwideweb
+✅ Fichiers : index.html + targets.mind
+✅ Vidéo : Cloudinary (WoodWideWeb_01)
+✅ Technologie : Mind AR 1.1.5
+✅ Compatible : iOS (Safari) + Android (Chrome)
