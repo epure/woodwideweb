@@ -3,352 +3,100 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>WoodWideWeb AR - Debug Détaillé</title>
-    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+    <title>WoodWideWeb AR - Test</title>
+    <!-- Mind AR 1.1.5 (version stable) -->
+    <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.5/dist/mindar-image.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.5/dist/mindar-image-aframe.prod.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        html, body {
-            position: fixed;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            font-family: monospace;
-        }
-        
-        #debug {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: #000;
-            color: #0f0;
-            padding: 15px;
-            z-index: 10000;
-            overflow-y: auto;
-            font-size: 12px;
-        }
-        
-        .step {
-            margin: 8px 0;
-            padding: 8px;
-            background: #111;
-            border-left: 3px solid #0f0;
-        }
-        
-        .step.error {
-            border-color: #f00;
-            color: #f00;
-        }
-        
-        .step.waiting {
-            border-color: #ff0;
-            color: #ff0;
-        }
-        
-        .step.info {
-            border-color: #0ff;
-            color: #0ff;
-        }
-        
-        #debug.hide {
-            display: none;
-        }
-        
-        a-scene {
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 100% !important;
-            height: 100% !important;
-        }
+        body { margin: 0; overflow: hidden; }
         
         #info {
             position: fixed;
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(0,0,0,0.9);
+            background: rgba(0,0,0,0.85);
             color: white;
-            padding: 15px 25px;
-            border-radius: 20px;
-            z-index: 1000;
-            display: none;
+            padding: 15px 30px;
+            border-radius: 25px;
             font-family: Arial;
+            z-index: 1000;
+            font-size: 16px;
         }
         
-        #info.show {
-            display: block;
+        #info.green {
+            background: rgba(46,125,50,0.9);
         }
     </style>
 </head>
 <body>
-    <div id="debug">
-        <h2 style="margin-bottom: 15px;">🔍 WoodWideWeb AR - Diagnostic Détaillé</h2>
-        <div id="log"></div>
-        <div id="summary" style="margin-top: 20px; padding: 15px; background: #222; border: 2px solid #0f0;"></div>
-    </div>
-    
     <div id="info">📱 Pointez vers votre image</div>
     
     <a-scene 
-        mindar-image="imageTargetSrc: ./targets.mind"
+        mindar-image="imageTargetSrc: ./targets.mind; filterMinCF:0.0001; filterBeta: 0.001"
+        color-space="sRGB"
+        renderer="colorManagement: true"
         vr-mode-ui="enabled: false"
         device-orientation-permission-ui="enabled: false">
         
-        <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-        
-        <a-entity mindar-image-target="targetIndex: 0" id="target">
-            <a-video 
-                src="#vid"
-                position="0 0 0"
-                height="0.844"
-                width="1.5">
-            </a-video>
-        </a-entity>
-
         <a-assets>
+            <!-- VIDÉO DE TEST SIMPLE (fonctionnera à coup sûr) -->
             <video 
                 id="vid"
-                src="https://res.cloudinary.com/dmgx02nlp/video/upload/w_1280,h_720,q_auto/v1770030665/WoodWideWeb_01_kj0sqr.mp4"
+                src="https://cdn.aframe.io/videos/bunny.mp4"
                 preload="auto"
                 loop
-                crossorigin="anonymous"
                 playsinline
                 webkit-playsinline
                 muted>
             </video>
         </a-assets>
+        
+        <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+        
+        <a-entity mindar-image-target="targetIndex: 0">
+            <a-video 
+                src="#vid"
+                position="0 0 0"
+                width="1.5"
+                height="0.844">
+            </a-video>
+        </a-entity>
     </a-scene>
 
     <script>
-        const debugDiv = document.getElementById('debug');
-        const logDiv = document.getElementById('log');
-        const summaryDiv = document.getElementById('summary');
+        console.log('🌳 Test avec Mind AR 1.1.5 + vidéo simple');
+        
         const info = document.getElementById('info');
         const video = document.getElementById('vid');
-        const scene = document.querySelector('a-scene');
-        const target = document.querySelector('#target');
+        const target = document.querySelector('[mindar-image-target]');
         
-        let stepCount = 0;
-        let checks = {
-            targetsMind: false,
-            video: false,
-            sceneLoaded: false,
-            renderStart: false,
-            mindarSystem: false,
-            cameraPermission: false,
-            ready: false
-        };
-        
-        function log(message, type = 'success') {
-            stepCount++;
-            const step = document.createElement('div');
-            step.className = 'step ' + type;
-            step.innerHTML = `<strong>[${stepCount}]</strong> ${message}`;
-            logDiv.appendChild(step);
-            console.log(`[${stepCount}] ${message}`);
-            logDiv.scrollTop = logDiv.scrollHeight;
-            
-            updateSummary();
-        }
-        
-        function updateSummary() {
-            summaryDiv.innerHTML = `
-                <strong>RÉSUMÉ DES VÉRIFICATIONS :</strong><br>
-                targets.mind : ${checks.targetsMind ? '✅' : '❌'}<br>
-                Vidéo : ${checks.video ? '✅' : '❌'}<br>
-                Scène chargée : ${checks.sceneLoaded ? '✅' : '❌'}<br>
-                Rendu démarré : ${checks.renderStart ? '✅' : '❌'}<br>
-                Mind AR : ${checks.mindarSystem ? '✅' : '❌'}<br>
-                Caméra : ${checks.cameraPermission ? '✅' : '❌'}<br>
-                Prêt : ${checks.ready ? '✅' : '❌'}
-            `;
-        }
-        
-        log('🚀 Démarrage application', 'info');
-        log('URL: ' + window.location.href, 'info');
-        log('Navigateur: ' + navigator.userAgent.substring(0, 60), 'info');
-        
-        // TEST 1: targets.mind
-        log('TEST 1/7: Chargement targets.mind...', 'waiting');
-        fetch('./targets.mind')
-            .then(r => {
-                if (!r.ok) throw new Error('HTTP ' + r.status);
-                return r.blob();
-            })
-            .then(blob => {
-                checks.targetsMind = true;
-                log(`✅ targets.mind OK (${(blob.size/1024).toFixed(2)} KB)`, 'success');
-                updateSummary();
-            })
-            .catch(err => {
-                log('❌ ÉCHEC targets.mind: ' + err.message, 'error');
-                log('→ PROBLÈME: Le fichier targets.mind est introuvable', 'error');
-                log('→ SOLUTION: Vérifiez qu\'il est uploadé sur GitHub', 'error');
-            });
-        
-        // TEST 2: Vidéo
-        log('TEST 2/7: Chargement vidéo Cloudinary...', 'waiting');
-        log('URL: ' + video.src, 'info');
-        
-        video.addEventListener('loadedmetadata', () => {
-            log('📹 Métadonnées vidéo reçues', 'info');
-        });
-        
+        // Log de la vidéo
         video.addEventListener('loadeddata', () => {
-            checks.video = true;
-            log(`✅ Vidéo OK (${video.videoWidth}x${video.videoHeight}, ${video.duration.toFixed(1)}s)`, 'success');
-            updateSummary();
+            console.log('✅ Vidéo chargée');
         });
         
-        video.addEventListener('error', (e) => {
-            log('❌ ÉCHEC vidéo: Code ' + video.error.code, 'error');
-            log('→ PROBLÈME: Impossible de charger la vidéo', 'error');
-            log('→ SOLUTION: Vérifiez l\'URL Cloudinary', 'error');
+        video.addEventListener('error', () => {
+            console.error('❌ Erreur vidéo');
         });
         
-        // TEST 3: Scène A-Frame
-        log('TEST 3/7: Initialisation A-Frame...', 'waiting');
-        
-        scene.addEventListener('loaded', () => {
-            checks.sceneLoaded = true;
-            log('✅ Scène A-Frame chargée', 'success');
-            updateSummary();
-        });
-        
-        // TEST 4: Rendu
-        log('TEST 4/7: Attente du rendu...', 'waiting');
-        
-        scene.addEventListener('renderstart', () => {
-            checks.renderStart = true;
-            log('✅ Rendu A-Frame démarré', 'success');
-            updateSummary();
-            
-            // TEST 5: Mind AR
-            log('TEST 5/7: Vérification Mind AR...', 'waiting');
-            
-            setTimeout(() => {
-                const system = scene.systems['mindar-image-system'];
-                
-                if (system) {
-                    checks.mindarSystem = true;
-                    log('✅ Système Mind AR détecté', 'success');
-                    log('→ Mind AR version: 1.2.5', 'info');
-                    updateSummary();
-                    
-                    // Vérifier si Mind AR démarre
-                    log('Attente démarrage automatique Mind AR...', 'waiting');
-                    
-                    setTimeout(() => {
-                        log('Mind AR devrait être actif maintenant', 'info');
-                        checkIfReady();
-                    }, 2000);
-                } else {
-                    log('❌ ÉCHEC: Système Mind AR introuvable', 'error');
-                    log('→ PROBLÈME: Scripts Mind AR non chargés', 'error');
-                }
-            }, 500);
-        });
-        
-        // TEST 6: Caméra
-        log('TEST 6/7: Permission caméra...', 'waiting');
-        navigator.mediaDevices.getUserMedia({ video: true })
-            .then(stream => {
-                checks.cameraPermission = true;
-                log('✅ Caméra autorisée', 'success');
-                stream.getTracks().forEach(t => t.stop());
-                updateSummary();
-            })
-            .catch(err => {
-                log('❌ Caméra refusée: ' + err.name, 'error');
-                log('→ PROBLÈME: Permission caméra nécessaire', 'error');
-                log('→ SOLUTION: Autorisez la caméra dans les réglages', 'error');
-            });
-        
-        // TEST 7: Vérification finale
-        function checkIfReady() {
-            log('TEST 7/7: Vérification finale...', 'waiting');
-            
-            const allGood = checks.targetsMind && 
-                           checks.video && 
-                           checks.sceneLoaded && 
-                           checks.renderStart && 
-                           checks.mindarSystem;
-            
-            if (allGood) {
-                checks.ready = true;
-                log('✅✅✅ TOUS LES TESTS RÉUSSIS !', 'success');
-                log('→ L\'application devrait fonctionner', 'success');
-                log('→ Fermeture du debug dans 3 secondes...', 'info');
-                updateSummary();
-                
-                setTimeout(() => {
-                    debugDiv.classList.add('hide');
-                    info.classList.add('show');
-                    log('🎯 MODE AR ACTIF', 'success');
-                }, 3000);
-            } else {
-                log('⚠️ CERTAINS TESTS ONT ÉCHOUÉ', 'error');
-                log('→ Consultez le résumé ci-dessous', 'error');
-                updateSummary();
-            }
-        }
-        
-        // Détection d'image
+        // Détection
         if (target) {
             target.addEventListener('targetFound', () => {
-                log('🎯🎯🎯 IMAGE DÉTECTÉE ! AR FONCTIONNE !', 'success');
-                info.textContent = '🎯 Image détectée !';
-                info.style.background = 'rgba(46,125,50,0.9)';
+                console.log('🎯 IMAGE DÉTECTÉE !');
+                info.textContent = '🎯 Ça marche !';
+                info.classList.add('green');
                 video.play().catch(() => {});
             });
             
             target.addEventListener('targetLost', () => {
-                log('📍 Image perdue', 'waiting');
+                console.log('📍 Image perdue');
                 info.textContent = '📱 Pointez vers votre image';
-                info.style.background = 'rgba(0,0,0,0.9)';
+                info.classList.remove('green');
                 video.pause();
             });
         }
-        
-        // Erreurs globales
-        window.addEventListener('error', (e) => {
-            log('❌ ERREUR JS: ' + e.message, 'error');
-        });
-        
-        updateSummary();
     </script>
 </body>
 </html>
-```
-
----
-
-## 🎯 UPLOADEZ CETTE VERSION
-
-1. **Remplacez** tout le code avec celui ci-dessus
-2. **Commit**
-3. **Attendez 2-3 min**
-4. **Testez sur mobile**
-
----
-
-## 📸 CETTE VERSION VOUS DIRA
-
-À la fin, un **RÉSUMÉ** apparaît avec :
-```
-RÉSUMÉ DES VÉRIFICATIONS :
-targets.mind : ✅ ou ❌
-Vidéo : ✅ ou ❌
-Scène chargée : ✅ ou ❌
-Rendu démarré : ✅ ou ❌
-Mind AR : ✅ ou ❌
-Caméra : ✅ ou ❌
-Prêt : ✅ ou ❌
