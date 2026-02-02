@@ -4,14 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WoodWideWeb AR</title>
-    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js"></script>
+    <!-- Scripts dans l'ordre EXACT -->
     <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
     <style>
         body {
             margin: 0;
             overflow: hidden;
-            font-family: 'Segoe UI', Arial, sans-serif;
+            font-family: Arial, sans-serif;
         }
         
         #loading-screen {
@@ -20,7 +20,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #2e7d32 0%, #81c784 100%);
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -62,19 +62,18 @@
             text-align: center;
             z-index: 1000;
             max-width: 85%;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
         }
         
         #instructions.hidden {
             display: none;
         }
         
-        #detected-badge {
+        #status {
             position: fixed;
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            background: rgba(46, 125, 50, 0.9);
             color: white;
             padding: 15px 25px;
             border-radius: 25px;
@@ -82,65 +81,44 @@
             z-index: 1000;
             display: none;
             font-weight: bold;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
         }
         
-        #detected-badge.show {
+        #status.show {
             display: block;
-            animation: slideIn 0.3s ease-out;
-        }
-        
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateX(-50%) translateY(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateX(-50%) translateY(0);
-            }
         }
     </style>
 </head>
 <body>
-    <!-- Écran de chargement -->
     <div id="loading-screen">
         <div class="loader"></div>
-        <h2>Chargement WoodWideWeb AR</h2>
-        <p style="font-size: 14px; margin-top: 10px; opacity: 0.9;">
-            Préparation de l'expérience...
+        <h2>🌳 WoodWideWeb AR</h2>
+        <p style="font-size: 14px; margin-top: 10px;">
+            Chargement de l'expérience...
         </p>
     </div>
     
-    <!-- Badge de détection -->
-    <div id="detected-badge">
-        🎯 Image détectée !
-    </div>
+    <div id="status">🎯 Image détectée !</div>
     
-    <!-- Instructions -->
     <div id="instructions">
-        <strong style="font-size: 18px;">📱 Pointez vers votre image cible</strong><br>
+        <strong style="font-size: 18px;">📱 Pointez vers votre image</strong><br>
         <small style="opacity: 0.8; margin-top: 8px; display: block;">
-            La vidéo apparaîtra automatiquement
+            La vidéo apparaîtra en réalité augmentée
         </small>
     </div>
 
-    <!-- Scène A-Frame avec Mind AR -->
     <a-scene 
-        mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiLoading: no; uiError: no; uiScanning: no;"
+        mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiLoading: no; uiScanning: no;"
         color-space="sRGB" 
         renderer="colorManagement: true, physicallyCorrectLights" 
         vr-mode-ui="enabled: false" 
-        device-orientation-permission-ui="enabled: false"
-        embedded>
+        device-orientation-permission-ui="enabled: false">
         
         <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
         
         <a-entity mindar-image-target="targetIndex: 0">
             <a-video 
-                src="#video1"
+                src="#vid"
                 position="0 0 0" 
-                rotation="0 0 0"
                 width="1.5" 
                 height="0.844">
             </a-video>
@@ -148,10 +126,10 @@
 
         <a-assets>
             <video 
-                id="video1" 
+                id="vid" 
                 src="https://res.cloudinary.com/dmgx02nlp/video/upload/w_1280,h_720,q_auto,f_auto/v1770030665/WoodWideWeb_01_kj0sqr.mp4"
                 preload="auto"
-                loop="true"
+                loop
                 crossorigin="anonymous"
                 playsinline
                 webkit-playsinline
@@ -161,100 +139,72 @@
     </a-scene>
 
     <script>
+        console.log('🌳 WoodWideWeb AR - Initialisation');
+        
         const sceneEl = document.querySelector('a-scene');
-        const videoEl = document.querySelector('#video1');
-        const loadingScreen = document.querySelector('#loading-screen');
+        const video = document.querySelector('#vid');
+        const loading = document.querySelector('#loading-screen');
         const instructions = document.querySelector('#instructions');
-        const detectedBadge = document.querySelector('#detected-badge');
+        const status = document.querySelector('#status');
         
-        let arStarted = false;
+        let started = false;
         
-        function log(msg) {
-            console.log('[WoodWideWeb AR]', msg);
-        }
-        
-        function playVideo(video) {
-            video.play().then(() => {
-                log('Vidéo lancée');
-            }).catch(err => {
-                log('Autoplay bloqué, tap requis');
-                document.body.addEventListener('click', () => {
-                    video.play();
-                }, { once: true });
-            });
-        }
-        
-        sceneEl.addEventListener('loaded', () => {
-            log('Scène chargée');
+        // Attendre que tout soit chargé
+        sceneEl.addEventListener('loaded', function() {
+            console.log('✅ Scène chargée');
         });
         
-        sceneEl.addEventListener('renderstart', () => {
-            log('Rendu AR démarré');
+        // Démarrer AR quand prêt
+        sceneEl.addEventListener('renderstart', function() {
+            console.log('✅ Rendu démarré');
             
-            if (!arStarted) {
-                const arSystem = sceneEl.systems["mindar-image-system"];
-                if (arSystem) {
-                    arSystem.start().then(() => {
-                        log('Mind AR démarré');
-                        arStarted = true;
-                        
-                        setTimeout(() => {
-                            loadingScreen.classList.add('hidden');
+            if (!started) {
+                started = true;
+                const system = sceneEl.systems['mindar-image-system'];
+                
+                system.start().then(() => {
+                    console.log('✅ AR démarré');
+                    
+                    // Attendre que la vidéo soit prête
+                    const checkReady = setInterval(() => {
+                        if (video.readyState >= 3) {
+                            clearInterval(checkReady);
+                            loading.classList.add('hidden');
                             instructions.classList.remove('hidden');
-                            log('Expérience prête');
-                        }, 1000);
-                        
-                    }).catch(err => {
-                        log('Erreur Mind AR: ' + err.message);
-                        loadingScreen.innerHTML = `
-                            <div style="padding: 30px;">
-                                <h2 style="color: #ff6b6b;">⚠️ Erreur AR</h2>
-                                <p>${err.message}</p>
-                                <p style="font-size: 14px; margin-top: 20px;">
-                                    Vérifiez que targets.mind est présent.
-                                </p>
-                            </div>
-                        `;
-                    });
-                }
+                            console.log('✅ Prêt !');
+                        }
+                    }, 100);
+                }).catch(err => {
+                    console.error('❌ Erreur AR:', err);
+                    loading.innerHTML = '<h2>❌ Erreur</h2><p>Impossible de démarrer AR</p>';
+                });
             }
         });
         
-        const targetEl = document.querySelector('[mindar-image-target]');
+        // Détection image
+        const target = document.querySelector('[mindar-image-target]');
         
-        targetEl.addEventListener('targetFound', () => {
-            log('Image détectée');
-            detectedBadge.classList.add('show');
+        target.addEventListener('targetFound', function() {
+            console.log('🎯 Image détectée');
+            status.classList.add('show');
             instructions.classList.add('hidden');
-            playVideo(videoEl);
+            
+            video.play().catch(e => {
+                console.log('Tap requis pour lire vidéo');
+                document.body.addEventListener('click', () => video.play(), {once: true});
+            });
         });
         
-        targetEl.addEventListener('targetLost', () => {
-            log('Image perdue');
-            detectedBadge.classList.remove('show');
+        target.addEventListener('targetLost', function() {
+            console.log('📍 Image perdue');
+            status.classList.remove('show');
             instructions.classList.remove('hidden');
-            videoEl.pause();
+            video.pause();
         });
         
-        videoEl.addEventListener('loadeddata', () => {
-            log('Vidéo Cloudinary chargée');
-        });
-        
-        videoEl.addEventListener('error', () => {
-            log('Erreur chargement vidéo');
-            console.error('URL vidéo:', videoEl.src);
-        });
-        
-        log('Application initialisée');
+        // Logs vidéo
+        video.addEventListener('loadeddata', () => console.log('✅ Vidéo chargée'));
+        video.addEventListener('error', () => console.error('❌ Erreur vidéo'));
     </script>
 </body>
 </html>
-```
-
----
-
-### **Étape 2 : Remplacer TOUT le contenu de index.html**
-
-1. **Allez sur :**
-```
-   https://github.com/epure/woodwideweb
