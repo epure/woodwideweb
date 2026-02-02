@@ -60,6 +60,7 @@
             z-index: 1000;
             font-size: 16px;
             display: none;
+            text-align: center;
         }
         
         #info.show {
@@ -68,28 +69,6 @@
         
         #info.detected {
             background: rgba(46,125,50,0.9);
-        }
-        
-        /* LOG VISIBLE À L'ÉCRAN */
-        #debug-log {
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            background: rgba(0,0,0,0.7);
-            color: #0f0;
-            padding: 10px;
-            border-radius: 8px;
-            font-size: 11px;
-            font-family: monospace;
-            max-width: 200px;
-            max-height: 150px;
-            overflow-y: auto;
-            z-index: 999;
-            display: none;
-        }
-        
-        #debug-log.show {
-            display: block;
         }
     </style>
 </head>
@@ -100,33 +79,35 @@
         <p style="margin-top: 10px; font-size: 14px; opacity: 0.9;">Initialisation...</p>
     </div>
     
-    <!-- LOG VISIBLE -->
-    <div id="debug-log"></div>
-    
     <div id="info">📱 Pointez vers votre image carrée</div>
     
     <a-scene 
-        mindar-image="imageTargetSrc: ./targets.mind; filterMinCF:0.0001; filterBeta: 0.001"
+        mindar-image="imageTargetSrc: ./targets.mind; filterMinCF:0.001; filterBeta: 10; warmupTolerance: 5; missTolerance: 5"
         color-space="sRGB"
-        renderer="colorManagement: true"
+        renderer="colorManagement: true; antialias: true"
         vr-mode-ui="enabled: false"
         device-orientation-permission-ui="enabled: false">
         
         <a-assets>
+            <!-- Vidéo SANS loop - 1 lecture par détection -->
             <video 
                 id="vid"
                 src="https://res.cloudinary.com/dmgx02nlp/video/upload/v1770030665/WoodWideWeb_01_kj0sqr.mp4"
                 crossorigin="anonymous"
                 preload="auto"
-                loop
                 playsinline
                 webkit-playsinline
                 muted>
             </video>
         </a-assets>
         
-        <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+        <a-camera 
+            position="0 0 0" 
+            look-controls="enabled: false"
+            wasd-controls="enabled: false">
+        </a-camera>
         
+        <!-- Vidéo ancrée sur l'image -->
         <a-entity mindar-image-target="targetIndex: 0">
             <a-video 
                 src="#vid"
@@ -134,121 +115,71 @@
                 rotation="0 0 0"
                 width="1"
                 height="1"
-                material="shader: flat"
+                material="shader: flat; side: double"
                 opacity="1">
             </a-video>
         </a-entity>
     </a-scene>
 
     <script>
-        console.log('🌳 WoodWideWeb AR - Version finale avec logs');
+        console.log('🌳 WoodWideWeb AR - 1 lecture par détection');
         
         const loading = document.getElementById('loading');
         const info = document.getElementById('info');
-        const debugLog = document.getElementById('debug-log');
         const video = document.getElementById('vid');
         const scene = document.querySelector('a-scene');
         const target = document.querySelector('[mindar-image-target]');
         
-        let logLines = [];
-        
-        // Fonction pour afficher les logs à l'écran
-        function screenLog(message) {
-            console.log(message);
-            logLines.push(message);
-            if (logLines.length > 8) logLines.shift(); // Garder max 8 lignes
-            debugLog.innerHTML = logLines.join('<br>');
-        }
-        
         scene.addEventListener('loaded', () => {
-            screenLog('✅ Scène prête');
+            console.log('✅ Scène prête');
             
             setTimeout(() => {
                 loading.classList.add('hide');
                 info.classList.add('show');
-                debugLog.classList.add('show');
-                screenLog('✅ AR active');
+                console.log('✅ AR active');
             }, 2000);
         });
         
-        video.addEventListener('loadeddata', () => {
-            screenLog('✅ Vidéo chargée');
-            screenLog(`⏱️ Durée: ${video.duration.toFixed(1)}s`);
-        });
-        
-        // Détection
+        // Détection d'image
         if (target) {
             target.addEventListener('targetFound', () => {
-                screenLog('🎯 Image détectée');
-                info.textContent = '🎯 Image détectée !';
+                console.log('🎯 Image détectée - Relance de la vidéo');
+                info.textContent = '🎯 Lecture en cours';
                 info.classList.add('detected');
                 
+                // RELANCER LA VIDÉO DEPUIS LE DÉBUT À CHAQUE DÉTECTION
+                video.currentTime = 0;
+                
                 video.play().then(() => {
-                    screenLog('▶️ Vidéo lancée');
+                    console.log('▶️ Vidéo lancée depuis le début');
                 }).catch(() => {
-                    screenLog('⚠️ Tap requis');
-                    info.textContent = '👆 Tapez pour lancer';
+                    console.log('⚠️ Tap requis pour lancer');
+                    info.innerHTML = '👆 Tapez pour lancer la vidéo';
                     
                     document.body.addEventListener('click', () => {
-                        video.play();
-                        screenLog('▶️ Lancée après tap');
-                        info.textContent = '🎯 Image détectée !';
+                        video.currentTime = 0;
+                        video.play().then(() => {
+                            console.log('▶️ Vidéo lancée après tap');
+                            info.textContent = '🎯 Lecture en cours';
+                        });
                     }, { once: true });
                 });
             });
             
             target.addEventListener('targetLost', () => {
-                screenLog('📍 Image perdue');
+                console.log('📍 Image perdue - Pause vidéo');
+                video.pause();
                 info.textContent = '📱 Pointez vers votre image';
                 info.classList.remove('detected');
-                video.pause();
             });
         }
         
-        // Progression vidéo (tous les 25%)
-        let lastPercent = 0;
-        video.addEventListener('timeupdate', () => {
-            if (video.currentTime > 0 && video.duration > 0) {
-                const percent = Math.floor(video.currentTime / video.duration * 100);
-                
-                // Afficher à 25%, 50%, 75%, 100%
-                if (percent >= 25 && lastPercent < 25) {
-                    screenLog('📹 25%');
-                } else if (percent >= 50 && lastPercent < 50) {
-                    screenLog('📹 50%');
-                } else if (percent >= 75 && lastPercent < 75) {
-                    screenLog('📹 75%');
-                } else if (percent >= 99 && lastPercent < 99) {
-                    screenLog('📹 100% ✅');
-                }
-                
-                lastPercent = percent;
-            }
-        });
-        
+        // Quand la vidéo se termine
         video.addEventListener('ended', () => {
-            screenLog('🔄 Redémarrage');
-            lastPercent = 0;
+            console.log('✅ Vidéo terminée');
+            info.textContent = '✅ Lecture terminée';
+            info.style.background = 'rgba(0,0,0,0.85)';
         });
     </script>
 </body>
 </html>
-```
-
----
-
-## ✅ CE QUE VOUS VERREZ À L'ÉCRAN
-
-**En haut à gauche, un petit panneau noir affichera :**
-```
-✅ Scène prête
-✅ AR active
-✅ Vidéo chargée
-⏱️ Durée: 15.2s
-🎯 Image détectée
-▶️ Vidéo lancée
-📹 25%
-📹 50%
-📹 75%
-📹 100% ✅
-🔄 Redémarrage
