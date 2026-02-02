@@ -71,9 +71,27 @@
             display: block;
         }
         
-        /* Bloc reste noir même quand détecté */
-        #info.detected {
-            background: rgba(0,0,0,0.85);
+        /* Barre de progression fine en bas */
+        #progress-container {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: rgba(0,0,0,0.5);
+            z-index: 999;
+            display: none;
+        }
+        
+        #progress-container.show {
+            display: block;
+        }
+        
+        #progress-bar {
+            height: 100%;
+            width: 0%;
+            background: white;
+            transition: width 0.1s linear;
         }
     </style>
 </head>
@@ -84,6 +102,11 @@
     </div>
     
     <div id="info">Pointez vers votre image</div>
+    
+    <!-- Barre de progression -->
+    <div id="progress-container">
+        <div id="progress-bar"></div>
+    </div>
     
     <a-scene 
         mindar-image="imageTargetSrc: ./targets.mind; filterMinCF: 0.00000001; filterBeta: 10000; warmupTolerance: 50; missTolerance: 50; maxTrack: 1"
@@ -178,6 +201,8 @@
         
         const loading = document.getElementById('loading');
         const info = document.getElementById('info');
+        const progressContainer = document.getElementById('progress-container');
+        const progressBar = document.getElementById('progress-bar');
         const video = document.getElementById('vid');
         const scene = document.querySelector('a-scene');
         const target = document.querySelector('[mindar-image-target]');
@@ -190,17 +215,32 @@
             }, 2000);
         });
         
+        // Mettre à jour la barre de progression pendant la lecture
+        video.addEventListener('timeupdate', () => {
+            if (video.duration > 0) {
+                const percent = (video.currentTime / video.duration) * 100;
+                progressBar.style.width = percent + '%';
+            }
+        });
+        
         if (target) {
             target.addEventListener('targetFound', () => {
                 console.log('Image détectée');
-                info.textContent = 'Lecture en cours';
-                info.classList.add('detected');
+                
+                // Cacher le message, afficher la barre
+                info.classList.remove('show');
+                progressContainer.classList.add('show');
                 
                 video.play().catch(() => {
+                    // Si autoplay bloqué, afficher message temporaire
                     info.textContent = 'Tapez pour lancer';
+                    info.classList.add('show');
+                    progressContainer.classList.remove('show');
+                    
                     document.body.addEventListener('click', () => {
                         video.play();
-                        info.textContent = 'Lecture en cours';
+                        info.classList.remove('show');
+                        progressContainer.classList.add('show');
                     }, { once: true });
                 });
             });
@@ -208,15 +248,20 @@
             target.addEventListener('targetLost', () => {
                 console.log('Image perdue');
                 video.pause();
+                
+                // Afficher le message, cacher la barre
+                progressContainer.classList.remove('show');
                 info.textContent = 'Pointez vers votre image';
-                info.classList.remove('detected');
+                info.classList.add('show');
             });
         }
         
         video.addEventListener('ended', () => {
             console.log('Vidéo terminée');
-            info.textContent = 'Lecture terminée';
-            info.style.background = 'rgba(0,0,0,0.85)';
+            // Barre reste à 100%, disparaît après 2 secondes
+            setTimeout(() => {
+                progressContainer.classList.remove('show');
+            }, 2000);
         });
     </script>
 </body>
