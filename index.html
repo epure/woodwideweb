@@ -50,41 +50,15 @@
             font-weight: 400;
         }
         
-        #info {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,0,0,0.85);
-            color: white;
-            padding: 15px 30px;
-            border-radius: 25px;
-            z-index: 1000;
-            font-size: 13px;
-            display: none;
-            text-align: center;
-            font-family: 'IBM Plex Mono', monospace;
-            font-weight: 400;
-        }
-        
-        #info.show {
-            display: block;
-        }
-        
-        /* Barre de progression fine en bas */
+        /* Barre de progression permanente 10px */
         #progress-container {
             position: fixed;
             bottom: 0;
             left: 0;
             width: 100%;
-            height: 3px;
+            height: 10px;
             background: rgba(0,0,0,0.5);
             z-index: 999;
-            display: none;
-        }
-        
-        #progress-container.show {
-            display: block;
         }
         
         #progress-bar {
@@ -101,9 +75,7 @@
         <p style="margin-top: 10px; font-size: 14px; opacity: 0.9;">Initialisation...</p>
     </div>
     
-    <div id="info">Pointez vers votre image</div>
-    
-    <!-- Barre de progression -->
+    <!-- Barre de progression permanente -->
     <div id="progress-container">
         <div id="progress-bar"></div>
     </div>
@@ -200,8 +172,6 @@
         console.log('Wood Wide Web AR - Version finale optimisée');
         
         const loading = document.getElementById('loading');
-        const info = document.getElementById('info');
-        const progressContainer = document.getElementById('progress-container');
         const progressBar = document.getElementById('progress-bar');
         const video = document.getElementById('vid');
         const scene = document.querySelector('a-scene');
@@ -211,7 +181,6 @@
             console.log('✅ Scène prête');
             setTimeout(() => {
                 loading.classList.add('hide');
-                info.classList.add('show');
             }, 2000);
         });
         
@@ -227,20 +196,10 @@
             target.addEventListener('targetFound', () => {
                 console.log('Image détectée');
                 
-                // Cacher le message, afficher la barre
-                info.classList.remove('show');
-                progressContainer.classList.add('show');
-                
                 video.play().catch(() => {
-                    // Si autoplay bloqué, afficher message temporaire
-                    info.textContent = 'Tapez pour lancer';
-                    info.classList.add('show');
-                    progressContainer.classList.remove('show');
-                    
+                    console.log('Autoplay bloqué - interaction requise');
                     document.body.addEventListener('click', () => {
                         video.play();
-                        info.classList.remove('show');
-                        progressContainer.classList.add('show');
                     }, { once: true });
                 });
             });
@@ -248,20 +207,14 @@
             target.addEventListener('targetLost', () => {
                 console.log('Image perdue');
                 video.pause();
-                
-                // Afficher le message, cacher la barre
-                progressContainer.classList.remove('show');
-                info.textContent = 'Pointez vers votre image';
-                info.classList.add('show');
+                // Remettre la barre à 0%
+                progressBar.style.width = '0%';
             });
         }
         
         video.addEventListener('ended', () => {
             console.log('Vidéo terminée');
-            // Barre reste à 100%, disparaît après 2 secondes
-            setTimeout(() => {
-                progressContainer.classList.remove('show');
-            }, 2000);
+            // Barre reste à 100%
         });
     </script>
 </body>
