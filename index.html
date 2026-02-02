@@ -105,21 +105,16 @@
         <a-entity mindar-image-target="targetIndex: 0">
             <!-- 
             ══════════════════════════════════════════════════════════
-            VIDÉO COLLÉE SUR L'IMAGE
+            VIDÉO CARRÉE COLLÉE SUR IMAGE CARRÉE
             ══════════════════════════════════════════════════════════
             
-            position="0 0 0" → Centre de l'image, Z=0 (pas de profondeur)
-            rotation="0 0 0" → Pas de rotation, plat sur l'image
+            Format 1:1 (carré)
+            - width="1"  → 100% de la largeur de l'image
+            - height="1" → 100% de la hauteur de l'image
+            - position Z=0 → Collée exactement sur l'image
+            - rotation 0 0 0 → Pas de rotation, parfaitement plat
             
-            DIMENSIONS :
-            - Mind AR utilise un ratio où 1 = taille de l'image
-            - width="1" = largeur de l'image entière
-            - height calculé selon le ratio de VOTRE vidéo
-            
-            Pour calculer la hauteur :
-            Si votre vidéo est 16:9 → height = 1 × (9/16) = 0.5625
-            Si votre vidéo est 4:3  → height = 1 × (3/4) = 0.75
-            Si votre vidéo est 1:1  → height = 1
+            La vidéo recouvre EXACTEMENT toute l'image !
             ══════════════════════════════════════════════════════════
             -->
             <a-video 
@@ -127,14 +122,15 @@
                 position="0 0 0"
                 rotation="0 0 0"
                 width="1"
-                height="0.5625"
+                height="1"
+                material="shader: flat"
                 opacity="1">
             </a-video>
         </a-entity>
     </a-scene>
 
     <script>
-        console.log('🌳 WoodWideWeb AR - Vidéo collée sur image');
+        console.log('🌳 WoodWideWeb AR - Format carré 1:1');
         
         const loading = document.getElementById('loading');
         const info = document.getElementById('info');
@@ -146,11 +142,9 @@
         let sceneReady = false;
         
         video.addEventListener('loadeddata', () => {
-            console.log('✅ Vidéo chargée');
-            
-            // Afficher les dimensions réelles de la vidéo
-            console.log(`📹 Dimensions vidéo: ${video.videoWidth}x${video.videoHeight}`);
-            console.log(`📐 Ratio: ${(video.videoHeight / video.videoWidth).toFixed(4)}`);
+            console.log('✅ Vidéo carrée chargée');
+            console.log(`📹 Dimensions: ${video.videoWidth}x${video.videoHeight}`);
+            console.log(`📐 Ratio: ${(video.videoHeight / video.videoWidth).toFixed(4)} (devrait être ~1.0000 pour un carré)`);
             
             videoReady = true;
             checkReady();
@@ -172,7 +166,7 @@
         
         function checkReady() {
             if (videoReady && sceneReady) {
-                console.log('✅ Expérience prête !');
+                console.log('✅ Expérience prête - Vidéo alignée 1:1 sur image');
                 setTimeout(() => {
                     loading.classList.add('hide');
                     info.classList.add('show');
@@ -182,7 +176,7 @@
         
         if (target) {
             target.addEventListener('targetFound', () => {
-                console.log('🎯 Image détectée - Vidéo collée dessus');
+                console.log('🎯 Image carrée détectée - Vidéo parfaitement alignée');
                 info.textContent = '🎯 Image détectée !';
                 info.classList.add('detected');
                 
