@@ -81,15 +81,25 @@
     
     <div id="info">📱 Pointez vers votre image carrée</div>
     
+    <!-- 
+    ══════════════════════════════════════════════════════════
+    PARAMÈTRES DE STABILISATION MAXIMALE
+    ══════════════════════════════════════════════════════════
+    filterMinCF: 0.0001    → Filtre très conservateur (moins de tremblement)
+    filterBeta: 50         → Lissage très fort (stabilisation max)
+    warmupTolerance: 10    → Plus de tolérance au démarrage
+    missTolerance: 10      → Garde le tracking plus longtemps si perd l'image
+    maxTrack: 1            → Un seul objet = meilleure performance
+    ══════════════════════════════════════════════════════════
+    -->
     <a-scene 
-        mindar-image="imageTargetSrc: ./targets.mind; filterMinCF:0.001; filterBeta: 10; warmupTolerance: 5; missTolerance: 5"
+        mindar-image="imageTargetSrc: ./targets.mind; filterMinCF: 0.0001; filterBeta: 50; warmupTolerance: 10; missTolerance: 10; maxTrack: 1"
         color-space="sRGB"
-        renderer="colorManagement: true; antialias: true"
+        renderer="colorManagement: true; antialias: true; physicallyCorrectLights: true"
         vr-mode-ui="enabled: false"
         device-orientation-permission-ui="enabled: false">
         
         <a-assets>
-            <!-- Vidéo SANS loop - 1 lecture par détection -->
             <video 
                 id="vid"
                 src="https://res.cloudinary.com/dmgx02nlp/video/upload/v1770030665/WoodWideWeb_01_kj0sqr.mp4"
@@ -101,28 +111,39 @@
             </video>
         </a-assets>
         
+        <!-- Caméra ultra-stable -->
         <a-camera 
             position="0 0 0" 
-            look-controls="enabled: false"
-            wasd-controls="enabled: false">
+            look-controls="enabled: false; magicWindowTrackingEnabled: false"
+            wasd-controls="enabled: false"
+            cursor="rayOrigin: mouse">
         </a-camera>
         
-        <!-- Vidéo ancrée sur l'image -->
+        <!-- 
+        ══════════════════════════════════════════════════════════
+        VIDÉO PARFAITEMENT ANCRÉE
+        ══════════════════════════════════════════════════════════
+        position="0 0 0.001"   → Légèrement devant pour éviter z-fighting
+        scale="1 1 1"          → Échelle 1:1 exacte
+        material optimisé      → Shader flat + double face + transparent
+        ══════════════════════════════════════════════════════════
+        -->
         <a-entity mindar-image-target="targetIndex: 0">
-            <a-video 
+            <a-plane
                 src="#vid"
-                position="0 0 0"
+                position="0 0 0.001"
                 rotation="0 0 0"
                 width="1"
                 height="1"
-                material="shader: flat; side: double"
-                opacity="1">
-            </a-video>
+                scale="1 1 1"
+                material="shader: flat; transparent: false; side: double; depthTest: true; depthWrite: true"
+                geometry="primitive: plane">
+            </a-plane>
         </a-entity>
     </a-scene>
 
     <script>
-        console.log('🌳 WoodWideWeb AR - 1 lecture par détection');
+        console.log('🌳 WoodWideWeb AR - Ultra-stable');
         
         const loading = document.getElementById('loading');
         const info = document.getElementById('info');
@@ -131,35 +152,32 @@
         const target = document.querySelector('[mindar-image-target]');
         
         scene.addEventListener('loaded', () => {
-            console.log('✅ Scène prête');
+            console.log('✅ Scène prête avec stabilisation maximale');
             
             setTimeout(() => {
                 loading.classList.add('hide');
                 info.classList.add('show');
-                console.log('✅ AR active');
+                console.log('✅ AR active - Tracking ultra-stable');
             }, 2000);
         });
         
         // Détection d'image
         if (target) {
             target.addEventListener('targetFound', () => {
-                console.log('🎯 Image détectée - Relance de la vidéo');
+                console.log('🎯 Image détectée - Vidéo ancrée');
                 info.textContent = '🎯 Lecture en cours';
                 info.classList.add('detected');
                 
-                // RELANCER LA VIDÉO DEPUIS LE DÉBUT À CHAQUE DÉTECTION
-                video.currentTime = 0;
-                
+                // Continue la lecture (pas de reset)
                 video.play().then(() => {
-                    console.log('▶️ Vidéo lancée depuis le début');
+                    console.log('▶️ Vidéo en lecture');
                 }).catch(() => {
-                    console.log('⚠️ Tap requis pour lancer');
-                    info.innerHTML = '👆 Tapez pour lancer la vidéo';
+                    console.log('⚠️ Tap requis');
+                    info.innerHTML = '👆 Tapez pour lancer';
                     
                     document.body.addEventListener('click', () => {
-                        video.currentTime = 0;
                         video.play().then(() => {
-                            console.log('▶️ Vidéo lancée après tap');
+                            console.log('▶️ Vidéo lancée');
                             info.textContent = '🎯 Lecture en cours';
                         });
                     }, { once: true });
@@ -167,14 +185,14 @@
             });
             
             target.addEventListener('targetLost', () => {
-                console.log('📍 Image perdue - Pause vidéo');
+                console.log('📍 Image perdue - Pause');
                 video.pause();
                 info.textContent = '📱 Pointez vers votre image';
                 info.classList.remove('detected');
             });
         }
         
-        // Quand la vidéo se termine
+        // Fin de vidéo
         video.addEventListener('ended', () => {
             console.log('✅ Vidéo terminée');
             info.textContent = '✅ Lecture terminée';
