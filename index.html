@@ -79,20 +79,10 @@
         <p style="margin-top: 10px; font-size: 14px; opacity: 0.9;">Initialisation...</p>
     </div>
     
-    <div id="info">📱 Pointez vers votre image carrée</div>
+    <div id="info">📱 Pointez vers votre image</div>
     
-    <!-- 
-    ══════════════════════════════════════════════════════════
-    STABILISATION EXTRÊME
-    ══════════════════════════════════════════════════════════
-    filterMinCF: 0.000001  → Ultra-conservateur (1000x plus stable)
-    filterBeta: 500        → Lissage maximum (50x plus fort)
-    warmupTolerance: 20    → Très tolérant au démarrage
-    missTolerance: 20      → Garde tracking très longtemps
-    ══════════════════════════════════════════════════════════
-    -->
     <a-scene 
-        mindar-image="imageTargetSrc: ./targets.mind; filterMinCF: 0.000001; filterBeta: 500; warmupTolerance: 20; missTolerance: 20; maxTrack: 1"
+        mindar-image="imageTargetSrc: ./targets.mind; filterMinCF: 0.000001; filterBeta: 1000; warmupTolerance: 20; missTolerance: 20; maxTrack: 1"
         color-space="sRGB"
         renderer="colorManagement: true; antialias: true; precision: high"
         vr-mode-ui="enabled: false"
@@ -116,63 +106,21 @@
             wasd-controls="enabled: false">
         </a-camera>
         
-        <!-- 
-        ══════════════════════════════════════════════════════════
-        VIDÉO PARFAITEMENT COLLÉE - ZÉRO ESPACE
-        ══════════════════════════════════════════════════════════
-        position="0 0 0"       → Z=0 EXACT (pas 0.001)
-        width="1.001"          → Légèrement plus large pour déborder
-        height="1.001"         → Légèrement plus haute pour déborder
-        material avec src      → Texture directe sans intermédiaire
-        ══════════════════════════════════════════════════════════
-        -->
-        <a-entity mindar-image-target="targetIndex: 0" smooth-transform="speed: 0.05">
+        <!-- Vidéo avec débordement 2% pour éliminer l'espace -->
+        <a-entity mindar-image-target="targetIndex: 0">
             <a-plane
                 material="src: #vid; shader: flat; side: double; transparent: false"
                 position="0 0 0"
                 rotation="0 0 0"
-                width="1.001"
-                height="1.001"
-                geometry="primitive: plane; segmentsWidth: 2; segmentsHeight: 2">
+                width="1.02"
+                height="1.02"
+                geometry="primitive: plane">
             </a-plane>
         </a-entity>
     </a-scene>
 
     <script>
-        // ═══════════════════════════════════════════════════════
-        // COMPOSANT DE LISSAGE PERSONNALISÉ
-        // ═══════════════════════════════════════════════════════
-        AFRAME.registerComponent('smooth-transform', {
-            schema: {
-                speed: {type: 'number', default: 0.1}
-            },
-            
-            init: function() {
-                this.targetPosition = new THREE.Vector3();
-                this.targetRotation = new THREE.Quaternion();
-                this.targetScale = new THREE.Vector3(1, 1, 1);
-            },
-            
-            tick: function() {
-                const el = this.el;
-                const object3D = el.object3D;
-                const speed = this.data.speed;
-                
-                // Interpolation lisse (lerp) de la position
-                this.targetPosition.copy(object3D.position);
-                object3D.position.lerp(this.targetPosition, speed);
-                
-                // Interpolation lisse de la rotation
-                this.targetRotation.copy(object3D.quaternion);
-                object3D.quaternion.slerp(this.targetRotation, speed);
-                
-                // Interpolation lisse de l'échelle
-                this.targetScale.copy(object3D.scale);
-                object3D.scale.lerp(this.targetScale, speed);
-            }
-        });
-        
-        console.log('🌳 WoodWideWeb AR - Stabilisation extrême + Collage parfait');
+        console.log('🌳 WoodWideWeb AR - Version finale');
         
         const loading = document.getElementById('loading');
         const info = document.getElementById('info');
@@ -181,32 +129,24 @@
         const target = document.querySelector('[mindar-image-target]');
         
         scene.addEventListener('loaded', () => {
-            console.log('✅ Scène prête - Stabilisation maximum active');
-            
+            console.log('✅ Scène prête');
             setTimeout(() => {
                 loading.classList.add('hide');
                 info.classList.add('show');
-                console.log('✅ AR active - Tracking ultra-stable + Vidéo collée');
             }, 2000);
         });
         
         if (target) {
             target.addEventListener('targetFound', () => {
-                console.log('🎯 Image détectée - Vidéo parfaitement ancrée');
+                console.log('🎯 Image détectée');
                 info.textContent = '🎯 Lecture en cours';
                 info.classList.add('detected');
                 
-                video.play().then(() => {
-                    console.log('▶️ Vidéo en lecture');
-                }).catch(() => {
-                    console.log('⚠️ Tap requis');
+                video.play().catch(() => {
                     info.innerHTML = '👆 Tapez pour lancer';
-                    
                     document.body.addEventListener('click', () => {
-                        video.play().then(() => {
-                            console.log('▶️ Vidéo lancée');
-                            info.textContent = '🎯 Lecture en cours';
-                        });
+                        video.play();
+                        info.textContent = '🎯 Lecture en cours';
                     }, { once: true });
                 });
             });
