@@ -81,16 +81,6 @@
     
     <div id="info">📱 Pointez vers votre image</div>
     
-    <!-- 
-    ══════════════════════════════════════════════════════════
-    LISSAGE MAXIMUM ABSOLU
-    ══════════════════════════════════════════════════════════
-    filterMinCF: 0.00000001 → 10x plus conservateur qu'avant
-    filterBeta: 10000       → Doublé (lissage maximum absolu)
-    warmupTolerance: 50     → Très élevé
-    missTolerance: 50       → Très élevé
-    ══════════════════════════════════════════════════════════
-    -->
     <a-scene 
         mindar-image="imageTargetSrc: ./targets.mind; filterMinCF: 0.00000001; filterBeta: 10000; warmupTolerance: 50; missTolerance: 50; maxTrack: 1"
         color-space="sRGB"
@@ -120,11 +110,10 @@
         
         <!-- 
         ══════════════════════════════════════════════════════════
-        STABILISATION ULTRA-LISSÉE
+        DÉBORDEMENT 1% + STABILISATION MAXIMUM
         ══════════════════════════════════════════════════════════
-        speed: 0.08        → Vitesse très lente (était 0.15)
-        bufferSize: 40     → Moyenne sur 40 frames (était 20)
-        = Lissage 2x plus fort
+        width="1.01"   → Déborde de 1% de chaque côté
+        height="1.01"  → Élimine l'espace entre image et vidéo
         ══════════════════════════════════════════════════════════
         -->
         <a-entity mindar-image-target="targetIndex: 0" smooth-transform="speed: 0.08; bufferSize: 40">
@@ -132,18 +121,14 @@
                 material="src: #vid; shader: flat; side: double; transparent: false; depthTest: true; depthWrite: true"
                 position="0 0 0"
                 rotation="0 0 0"
-                width="1"
-                height="1"
+                width="1.01"
+                height="1.01"
                 geometry="primitive: plane">
             </a-plane>
         </a-entity>
     </a-scene>
 
     <script>
-        // ═══════════════════════════════════════════════════════
-        // COMPOSANT DE STABILISATION ULTRA-LISSÉ
-        // Moyenne mobile sur 40 frames pour stabilité maximale
-        // ═══════════════════════════════════════════════════════
         AFRAME.registerComponent('smooth-transform', {
             schema: {
                 speed: {type: 'number', default: 0.1},
@@ -165,26 +150,22 @@
                 const el = this.el;
                 const object3D = el.object3D;
                 
-                // Ajouter position actuelle au buffer
                 this.positionBuffer.push(object3D.position.clone());
                 if (this.positionBuffer.length > this.maxBufferSize) {
                     this.positionBuffer.shift();
                 }
                 
-                // Ajouter rotation actuelle au buffer
                 this.rotationBuffer.push(object3D.quaternion.clone());
                 if (this.rotationBuffer.length > this.maxBufferSize) {
                     this.rotationBuffer.shift();
                 }
                 
-                // Calculer la moyenne des positions
                 this.smoothPosition.set(0, 0, 0);
                 this.positionBuffer.forEach(pos => {
                     this.smoothPosition.add(pos);
                 });
                 this.smoothPosition.divideScalar(this.positionBuffer.length);
                 
-                // Calculer la moyenne des rotations
                 if (this.rotationBuffer.length > 0) {
                     this.smoothRotation.copy(this.rotationBuffer[0]);
                     for (let i = 1; i < this.rotationBuffer.length; i++) {
@@ -192,13 +173,12 @@
                     }
                 }
                 
-                // Appliquer avec interpolation très lente
                 object3D.position.lerp(this.smoothPosition, this.data.speed);
                 object3D.quaternion.slerp(this.smoothRotation, this.data.speed);
             }
         });
         
-        console.log('🌳 WoodWideWeb AR - Lissage maximum');
+        console.log('🌳 WoodWideWeb AR - Version finale optimisée');
         
         const loading = document.getElementById('loading');
         const info = document.getElementById('info');
@@ -207,7 +187,7 @@
         const target = document.querySelector('[mindar-image-target]');
         
         scene.addEventListener('loaded', () => {
-            console.log('✅ Scène prête - Lissage MAXIMUM actif');
+            console.log('✅ Scène prête - Lissage maximum + débordement 1%');
             setTimeout(() => {
                 loading.classList.add('hide');
                 info.classList.add('show');
