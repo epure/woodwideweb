@@ -265,3 +265,90 @@
     </script>
 </body>
 </html>
+```
+
+---
+
+## 📝 REMPLACEZ ET TESTEZ
+
+1. **GitHub** : `https://github.com/epure/woodwideweb`
+2. **index.html** > ✏️ Edit
+3. **Ctrl+A** > Delete
+4. **Collez** le code debug
+5. **Commit** : `Debug version`
+6. **⏳ 2-3 minutes**
+7. **TESTEZ SUR MOBILE** : `https://epure.github.io/woodwideweb/`
+
+---
+
+## 🔍 QUE REGARDER
+
+**L'écran de debug va afficher chaque étape :**
+```
+Étape 1: Application démarrée ✅
+Étape 2: URL : https://... ✅
+Étape 3: Test targets.mind... ⏳
+Étape 4: ✅ targets.mind trouvé (125 KB) ✅
+Étape 5: Test vidéo... ⏳
+Étape 6: ✅ Vidéo chargée ✅
+Étape 7: Scène A-Frame... ⏳
+Étape 8: ✅ Scène chargée ✅
+...
+```
+
+---
+
+## 🎯 SELON LE RÉSULTAT
+
+### **Si ça bloque à "Test targets.mind"** ❌
+```
+→ Le fichier targets.mind n'est pas accessible
+→ Solution : Re-uploader targets.mind sur GitHub
+```
+
+### **Si ça bloque à "Test vidéo"** ❌
+```
+→ La vidéo Cloudinary ne charge pas
+→ Solution : Vérifier l'URL Cloudinary
+```
+
+### **Si ça bloque à "Mind AR"** ❌
+```
+→ Mind AR ne démarre pas
+→ Solution : Problème de compatibilité
+```
+
+### **Si tout est ✅ mais ne passe pas en mode AR** ⚠️
+```
+→ Problème d'affichage de l'interface
+→ Solution : Problème CSS à corriger
+```
+
+---
+
+## 📸 CE QUE JE DOIS VOIR
+
+**Testez sur mobile et faites une capture d'écran de l'écran de debug**
+
+Ou **dites-moi exactement :**
+
+1. **Jusqu'à quelle étape ça va ?**
+   - Ex: "Étape 4 OK, bloque à Étape 5"
+
+2. **Y a-t-il des messages rouges** ❌ ?
+   - Si oui, lesquels ?
+
+3. **L'écran de debug disparaît-il après ~5 secondes ?**
+   - Si oui → Tout fonctionne !
+   - Si non → Il y a un blocage
+
+---
+
+## ⏰ TIMING ATTENDU
+```
+0s : Écran de debug noir/vert apparaît
+1s : Tests targets.mind et vidéo
+2s : Scène A-Frame chargée
+3s : Mind AR détecté
+5s : Écran de debug disparaît automatiquement
+6s : Mode AR actif avec caméra visible
