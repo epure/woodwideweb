@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>WoodWideWeb AR</title>
+    <title>Wood Wide Web AR</title>
     
     <!-- Police IBM Plex Mono depuis Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -60,10 +60,11 @@
             padding: 15px 30px;
             border-radius: 25px;
             z-index: 1000;
-            font-size: 16px;
+            font-size: 13px;
             display: none;
             text-align: center;
             font-family: 'IBM Plex Mono', monospace;
+            font-weight: 400;
         }
         
         #info.show {
@@ -77,11 +78,11 @@
 </head>
 <body>
     <div id="loading">
-        <h2>WoodWideWeb AR</h2>
+        <h2>Wood Wide Web</h2>
         <p style="margin-top: 10px; font-size: 14px; opacity: 0.9;">Initialisation...</p>
     </div>
     
-    <div id="info">📱 Pointez vers votre image</div>
+    <div id="info">Pointez vers votre image</div>
     
     <a-scene 
         mindar-image="imageTargetSrc: ./targets.mind; filterMinCF: 0.00000001; filterBeta: 10000; warmupTolerance: 50; missTolerance: 50; maxTrack: 1"
@@ -172,7 +173,7 @@
             }
         });
         
-        console.log('🌳 WoodWideWeb AR - Version finale optimisée');
+        console.log('Wood Wide Web AR - Version finale optimisée');
         
         const loading = document.getElementById('loading');
         const info = document.getElementById('info');
@@ -190,30 +191,30 @@
         
         if (target) {
             target.addEventListener('targetFound', () => {
-                console.log('🎯 Image détectée');
-                info.textContent = '🎯 Lecture en cours';
+                console.log('Image détectée');
+                info.textContent = 'Lecture en cours';
                 info.classList.add('detected');
                 
                 video.play().catch(() => {
-                    info.innerHTML = '👆 Tapez pour lancer';
+                    info.textContent = 'Tapez pour lancer';
                     document.body.addEventListener('click', () => {
                         video.play();
-                        info.textContent = '🎯 Lecture en cours';
+                        info.textContent = 'Lecture en cours';
                     }, { once: true });
                 });
             });
             
             target.addEventListener('targetLost', () => {
-                console.log('📍 Image perdue');
+                console.log('Image perdue');
                 video.pause();
-                info.textContent = '📱 Pointez vers votre image';
+                info.textContent = 'Pointez vers votre image';
                 info.classList.remove('detected');
             });
         }
         
         video.addEventListener('ended', () => {
-            console.log('✅ Vidéo terminée');
-            info.textContent = '✅ Lecture terminée';
+            console.log('Vidéo terminée');
+            info.textContent = 'Lecture terminée';
             info.style.background = 'rgba(0,0,0,0.85)';
         });
     </script>
