@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebAR avec Cloudinary</title>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js"></script>
+    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+        
+        #loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 9999;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        #loading-screen.hidden {
+            display: none;
+        }
+        
+        .loader {
+            border: 5px solid rgba(255, 255, 255, 0.3);
+            border-top: 5px solid white;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 30px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        #loading-progress {
+            margin-top: 20px;
+            width: 80%;
+            max-width: 300px;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: white;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        #instructions {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            padding: 20px 30px;
+            border-radius: 15px;
+            text-align: center;
+            z-index: 1000;
+            max-width: 85%;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+        }
+        
+        #instructions.hidden {
+            display: none;
+        }
+        
+        #detected-badge {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 25px;
+            text-align: center;
+            z-index: 1000;
+            display: none;
+            font-weight: bold;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        #detected-badge.show {
+            display: block;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-50%) translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Écran de chargement -->
+    <div id="loading-screen">
+        <div class="loader"></div>
+        <h2>Chargement de l'expérience AR</h2>
+        <p style="font-size: 14px; margin-top: 10px; opacity: 0.9;">
+            Préparation des médias...
+        </p>
+        <div id="loading-progress">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill"></div>
+            </div>
+            <p style="font-size: 12px; margin-top: 8px;">
+                <span id="progress-text">0%</span>
+            </p>
+        </div>
+    </div>
+    
+    <!-- Badge de détection -->
+    <div id="detected-badge">
+        <span id="detected-text">🎯 Image détectée !</span>
+    </div>
+    
+    <!-- Instructions -->
+    <div id="instructions">
+        <strong style="font-size: 18px;">📱 Pointez vers votre image cible</strong><br>
+        <small style="opacity: 0.8; margin-top: 8px; display: block;">
+            La vidéo apparaîtra automatiquement en AR
+        </small>
+    </div>
+
+    <!-- Scène A-Frame avec Mind AR -->
+    <a-scene 
+        mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiLoading: no; uiError: no; uiScanning: no;"
+        color-space="sRGB" 
+        renderer="colorManagement: true, physicallyCorrectLights" 
+        vr-mode-ui="enabled: false" 
+        device-orientation-permission-ui="enabled: false"
+        embedded>
+        
+        <!-- Caméra AR -->
+        <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+        
+        <!-- 
+        ══════════════════════════════════════════════════════════════
+        📍 IMAGE CIBLE 1
+        ══════════════════════════════════════════════════════════════
+        -->
+        <a-entity mindar-image-target="targetIndex: 0" id="target-0">
+            <a-video 
+                src="#video1"
+                position="0 0 0" 
+                rotation="0 0 0"
+                width="1.5" 
+                height="0.844"
+                opacity="1">
+            </a-video>
+            
+            <!-- Bordure décorative (optionnel, vous pouvez supprimer) -->
+            <a-plane 
+                position="0 0 -0.01" 
+                rotation="0 0 0"
+                width="1.65" 
+                height="0.994"
+                color="#667eea"
+                opacity="0.2">
+            </a-plane>
+        </a-entity>
+        
+        <!-- 
+        ══════════════════════════════════════════════════════════════
+        💡 POUR AJOUTER D'AUTRES IMAGES, DÉCOMMENTEZ CI-DESSOUS :
+        ══════════════════════════════════════════════════════════════
+        
+        📍 IMAGE CIBLE 2
+        <a-entity mindar-image-target="targetIndex: 1" id="target-1">
+            <a-video 
+                src="#video2"
+                position="0 0 0" 
+                width="1.5" 
+                height="0.844">
+            </a-video>
+        </a-entity>
+        
+        📍 IMAGE CIBLE 3
+        <a-entity mindar-image-target="targetIndex: 2" id="target-2">
+            <a-video 
+                src="#video3"
+                position="0 0 0" 
+                width="1.5" 
+                height="0.844">
+            </a-video>
+        </a-entity>
+        ══════════════════════════════════════════════════════════════
+        -->
+
+        <!-- Assets -->
+        <a-assets>
+            <!-- 
+            ══════════════════════════════════════════════════════════════
+            🎬 VIDÉO 1 - MODIFIEZ ICI !
+            ══════════════════════════════════════════════════════════════
+            
+            Étapes :
+            1. Allez sur Cloudinary : https://cloudinary.com
+            2. Uploadez votre vidéo dans Media Library
+            3. Cliquez sur votre vidéo
+            4. Copiez "Secure URL" qui ressemble à :
+               https://res.cloudinary.com/votre-cloud-name/video/upload/v1234567890/nom-video.mp4
+            
+            5. Remplacez l'URL ci-dessous par votre URL Cloudinary
+            6. Ajoutez les paramètres d'optimisation AVANT le "v" :
+               w_1280,h_720,q_auto,f_auto/
+            
+            Exemple final :
+            https://res.cloudinary.com/mon-cloud/video/upload/w_1280,h_720,q_auto,f_auto/v1234567890/ma-video.mp4
+            ══════════════════════════════════════════════════════════════
+            -->
+            <video 
+                id="video1" 
+                src="https://res.cloudinary.com/dmgx02nlp/video/upload/w_1280,h_720,q_auto,f_auto/v1770030665/WoodWideWeb_01_kj0sqr.mp4"
+                preload="auto"
+                loop="true"
+                crossorigin="anonymous"
+                playsinline
+                webkit-playsinline
+                muted>
+            </video>
+            
+            <!-- 
+            ══════════════════════════════════════════════════════════════
+            💡 POUR AJOUTER D'AUTRES VIDÉOS, DÉCOMMENTEZ CI-DESSOUS :
+            ══════════════════════════════════════════════════════════════
+            
+            🎬 VIDÉO 2
+            <video 
+                id="video2" 
+                src="https://res.cloudinary.com/VOTRE-CLOUD-NAME/video/upload/w_1280,h_720,q_auto/v1234567890/video2.mp4"
+                preload="none"
+                loop="true"
+                crossorigin="anonymous"
+                playsinline
+                muted>
+            </video>
+            
+            🎬 VIDÉO 3
+            <video 
+                id="video3" 
+                src="https://res.cloudinary.com/VOTRE-CLOUD-NAME/video/upload/w_1280,h_720,q_auto/v1234567890/video3.mp4"
+                preload="none"
+                loop="true"
+                crossorigin="anonymous"
+                playsinline
+                muted>
+            </video>
+            ══════════════════════════════════════════════════════════════
+            -->
+        </a-assets>
+    </a-scene>
+
+    <script>
+        // ═══════════════════════════════════════════════════════════════
+        // CONFIGURATION (optionnel)
+        // ═══════════════════════════════════════════════════════════════
+        
+        const CONFIG = {
+            // Personnalisez le message quand l'image est détectée
+            targetNames: {
+                0: "🎯 Image détectée !"
+                // Pour plusieurs images : 
+                // 1: "Vidéo 2 activée",
+                // 2: "Vidéo 3 activée"
+            }
+        };
+        
+        // ═══════════════════════════════════════════════════════════════
+        // CODE - NE PAS MODIFIER (sauf si vous savez ce que vous faites)
+        // ═══════════════════════════════════════════════════════════════
+        
+        const sceneEl = document.querySelector('a-scene');
+        const videoEl = document.querySelector('#video1');
+        const loadingScreen = document.querySelector('#loading-screen');
+        const instructions = document.querySelector('#instructions');
+        const detectedBadge = document.querySelector('#detected-badge');
+        const detectedText = document.querySelector('#detected-text');
+        const progressFill = document.querySelector('#progress-fill');
+        const progressText = document.querySelector('#progress-text');
+        
+        let arStarted = false;
+        let currentTarget = null;
+        
+        // Mise à jour de la barre de progression
+        function updateProgress(percent) {
+            progressFill.style.width = percent + '%';
+            progressText.textContent = Math.round(percent) + '%';
+        }
+        
+        // Suivi du chargement de la vidéo
+        let videoLoaded = false;
+        videoEl.addEventListener('loadeddata', () => {
+            videoLoaded = true;
+            console.log('✅ Vidéo Cloudinary chargée');
+            updateProgress(80);
+        });
+        
+        videoEl.addEventListener('error', (e) => {
+            console.error('❌ Erreur chargement vidéo. Vérifiez votre URL Cloudinary:', videoEl.src);
+            showError('Impossible de charger la vidéo depuis Cloudinary. Vérifiez l\'URL dans le code HTML (ligne ~185).');
+        });
+        
+        // Fonction pour jouer la vidéo
+        function playVideo(video) {
+            video.play().then(() => {
+                console.log('▶️ Vidéo en lecture');
+            }).catch(err => {
+                console.log('⚠️ Autoplay bloqué, tap pour lancer');
+                document.body.addEventListener('click', () => {
+                    video.play();
+                }, { once: true });
+            });
+        }
+        
+        // Événement : Scène chargée
+        sceneEl.addEventListener('loaded', () => {
+            console.log('📦 Scène A-Frame chargée');
+            updateProgress(40);
+        });
+        
+        // Événement : AR prêt
+        sceneEl.addEventListener('renderstart', () => {
+            console.log('🎬 Rendu AR démarré');
+            updateProgress(60);
+            
+            // Démarrer Mind AR
+            if (!arStarted) {
+                const arSystem = sceneEl.systems["mindar-image-system"];
+                arSystem.start().then(() => {
+                    console.log('✅ Mind AR démarré');
+                    arStarted = true;
+                    
+                    // Attendre que la vidéo soit chargée
+                    const checkVideo = setInterval(() => {
+                        if (videoLoaded || videoEl.readyState >= 3) {
+                            clearInterval(checkVideo);
+                            updateProgress(100);
+                            setTimeout(() => {
+                                loadingScreen.classList.add('hidden');
+                                instructions.classList.remove('hidden');
+                                console.log('🚀 Expérience AR prête');
+                            }, 500);
+                        }
+                    }, 100);
+                    
+                }).catch(err => {
+                    console.error('❌ Erreur Mind AR:', err);
+                    showError('Erreur d\'initialisation AR. Vérifiez que le fichier targets.mind est présent.');
+                });
+            }
+        });
+        
+        // Configuration des événements de détection
+        const targetEl = document.querySelector('#target-0');
+        
+        targetEl.addEventListener('targetFound', () => {
+            currentTarget = 0;
+            console.log('🎯 Image cible détectée');
+            
+            // Afficher le badge
+            detectedText.textContent = CONFIG.targetNames[0];
+            detectedBadge.classList.add('show');
+            instructions.classList.add('hidden');
+            
+            // Lancer la vidéo
+            playVideo(videoEl);
+        });
+        
+        targetEl.addEventListener('targetLost', () => {
+            console.log('📍 Image cible perdue');
+            
+            if (currentTarget === 0) {
+                detectedBadge.classList.remove('show');
+                instructions.classList.remove('hidden');
+                videoEl.pause();
+                currentTarget = null;
+            }
+        });
+        
+        // Gestion des erreurs
+        function showError(message) {
+            loadingScreen.innerHTML = `
+                <div style="padding: 30px; max-width: 500px;">
+                    <h2 style="color: #ff6b6b; margin-bottom: 20px;">⚠️ Erreur</h2>
+                    <div style="background: rgba(0,0,0,0.3); padding: 20px; border-radius: 10px; text-align: left;">
+                        <p style="margin: 0 0 20px 0;">${message}</p>
+                        
+                        <h3 style="margin: 20px 0 10px 0;">Vérifications :</h3>
+                        <ul style="line-height: 2;">
+                            <li>✓ URL Cloudinary correcte (ligne ~185)</li>
+                            <li>✓ Cloud Name configuré</li>
+                            <li>✓ Fichier targets.mind présent</li>
+                            <li>✓ HTTPS activé</li>
+                            <li>✓ Caméra autorisée</li>
+                        </ul>
+                        
+                        <p style="margin: 20px 0 0 0; font-size: 14px; opacity: 0.8;">
+                            Appuyez sur F12 pour voir la console et plus de détails.
+                        </p>
+                    </div>
+                </div>
+            `;
+        }
+        
+        window.addEventListener('error', (e) => {
+            console.error('❌ Erreur:', e.message);
+        });
+        
+        // Initialisation
+        console.log('🚀 Application WebAR Cloudinary initialisée');
+        updateProgress(20);
+    </script>
+</body>
+</html>
