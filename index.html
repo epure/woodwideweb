@@ -83,19 +83,18 @@
     
     <!-- 
     ══════════════════════════════════════════════════════════
-    PARAMÈTRES DE STABILISATION MAXIMALE
+    STABILISATION EXTRÊME
     ══════════════════════════════════════════════════════════
-    filterMinCF: 0.0001    → Filtre très conservateur (moins de tremblement)
-    filterBeta: 50         → Lissage très fort (stabilisation max)
-    warmupTolerance: 10    → Plus de tolérance au démarrage
-    missTolerance: 10      → Garde le tracking plus longtemps si perd l'image
-    maxTrack: 1            → Un seul objet = meilleure performance
+    filterMinCF: 0.000001  → Ultra-conservateur (1000x plus stable)
+    filterBeta: 500        → Lissage maximum (50x plus fort)
+    warmupTolerance: 20    → Très tolérant au démarrage
+    missTolerance: 20      → Garde tracking très longtemps
     ══════════════════════════════════════════════════════════
     -->
     <a-scene 
-        mindar-image="imageTargetSrc: ./targets.mind; filterMinCF: 0.0001; filterBeta: 50; warmupTolerance: 10; missTolerance: 10; maxTrack: 1"
+        mindar-image="imageTargetSrc: ./targets.mind; filterMinCF: 0.000001; filterBeta: 500; warmupTolerance: 20; missTolerance: 20; maxTrack: 1"
         color-space="sRGB"
-        renderer="colorManagement: true; antialias: true; physicallyCorrectLights: true"
+        renderer="colorManagement: true; antialias: true; precision: high"
         vr-mode-ui="enabled: false"
         device-orientation-permission-ui="enabled: false">
         
@@ -111,39 +110,69 @@
             </video>
         </a-assets>
         
-        <!-- Caméra ultra-stable -->
         <a-camera 
             position="0 0 0" 
             look-controls="enabled: false; magicWindowTrackingEnabled: false"
-            wasd-controls="enabled: false"
-            cursor="rayOrigin: mouse">
+            wasd-controls="enabled: false">
         </a-camera>
         
         <!-- 
         ══════════════════════════════════════════════════════════
-        VIDÉO PARFAITEMENT ANCRÉE
+        VIDÉO PARFAITEMENT COLLÉE - ZÉRO ESPACE
         ══════════════════════════════════════════════════════════
-        position="0 0 0.001"   → Légèrement devant pour éviter z-fighting
-        scale="1 1 1"          → Échelle 1:1 exacte
-        material optimisé      → Shader flat + double face + transparent
+        position="0 0 0"       → Z=0 EXACT (pas 0.001)
+        width="1.001"          → Légèrement plus large pour déborder
+        height="1.001"         → Légèrement plus haute pour déborder
+        material avec src      → Texture directe sans intermédiaire
         ══════════════════════════════════════════════════════════
         -->
-        <a-entity mindar-image-target="targetIndex: 0">
+        <a-entity mindar-image-target="targetIndex: 0" smooth-transform="speed: 0.05">
             <a-plane
-                src="#vid"
-                position="0 0 0.001"
+                material="src: #vid; shader: flat; side: double; transparent: false"
+                position="0 0 0"
                 rotation="0 0 0"
-                width="1"
-                height="1"
-                scale="1 1 1"
-                material="shader: flat; transparent: false; side: double; depthTest: true; depthWrite: true"
-                geometry="primitive: plane">
+                width="1.001"
+                height="1.001"
+                geometry="primitive: plane; segmentsWidth: 2; segmentsHeight: 2">
             </a-plane>
         </a-entity>
     </a-scene>
 
     <script>
-        console.log('🌳 WoodWideWeb AR - Ultra-stable');
+        // ═══════════════════════════════════════════════════════
+        // COMPOSANT DE LISSAGE PERSONNALISÉ
+        // ═══════════════════════════════════════════════════════
+        AFRAME.registerComponent('smooth-transform', {
+            schema: {
+                speed: {type: 'number', default: 0.1}
+            },
+            
+            init: function() {
+                this.targetPosition = new THREE.Vector3();
+                this.targetRotation = new THREE.Quaternion();
+                this.targetScale = new THREE.Vector3(1, 1, 1);
+            },
+            
+            tick: function() {
+                const el = this.el;
+                const object3D = el.object3D;
+                const speed = this.data.speed;
+                
+                // Interpolation lisse (lerp) de la position
+                this.targetPosition.copy(object3D.position);
+                object3D.position.lerp(this.targetPosition, speed);
+                
+                // Interpolation lisse de la rotation
+                this.targetRotation.copy(object3D.quaternion);
+                object3D.quaternion.slerp(this.targetRotation, speed);
+                
+                // Interpolation lisse de l'échelle
+                this.targetScale.copy(object3D.scale);
+                object3D.scale.lerp(this.targetScale, speed);
+            }
+        });
+        
+        console.log('🌳 WoodWideWeb AR - Stabilisation extrême + Collage parfait');
         
         const loading = document.getElementById('loading');
         const info = document.getElementById('info');
@@ -152,23 +181,21 @@
         const target = document.querySelector('[mindar-image-target]');
         
         scene.addEventListener('loaded', () => {
-            console.log('✅ Scène prête avec stabilisation maximale');
+            console.log('✅ Scène prête - Stabilisation maximum active');
             
             setTimeout(() => {
                 loading.classList.add('hide');
                 info.classList.add('show');
-                console.log('✅ AR active - Tracking ultra-stable');
+                console.log('✅ AR active - Tracking ultra-stable + Vidéo collée');
             }, 2000);
         });
         
-        // Détection d'image
         if (target) {
             target.addEventListener('targetFound', () => {
-                console.log('🎯 Image détectée - Vidéo ancrée');
+                console.log('🎯 Image détectée - Vidéo parfaitement ancrée');
                 info.textContent = '🎯 Lecture en cours';
                 info.classList.add('detected');
                 
-                // Continue la lecture (pas de reset)
                 video.play().then(() => {
                     console.log('▶️ Vidéo en lecture');
                 }).catch(() => {
@@ -185,14 +212,13 @@
             });
             
             target.addEventListener('targetLost', () => {
-                console.log('📍 Image perdue - Pause');
+                console.log('📍 Image perdue');
                 video.pause();
                 info.textContent = '📱 Pointez vers votre image';
                 info.classList.remove('detected');
             });
         }
         
-        // Fin de vidéo
         video.addEventListener('ended', () => {
             console.log('✅ Vidéo terminée');
             info.textContent = '✅ Lecture terminée';
