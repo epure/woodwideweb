@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>WoodWideWeb AR</title>
+    <title>WoodWideWeb AR - Debug</title>
     <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/dist/mindar-image-aframe.prod.js"></script>
     <style>
@@ -18,120 +18,95 @@
             width: 100%;
             height: 100%;
             overflow: hidden;
+            font-family: Arial, sans-serif;
         }
         
-        /* Forcer la scène à rester en arrière-plan */
+        #debug {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            color: #0f0;
+            padding: 20px;
+            z-index: 10000;
+            overflow-y: auto;
+            font-size: 14px;
+        }
+        
+        .step {
+            margin: 10px 0;
+            padding: 10px;
+            background: #111;
+            border-left: 3px solid #0f0;
+        }
+        
+        .step.error {
+            border-color: #f00;
+            color: #f00;
+        }
+        
+        .step.waiting {
+            border-color: #ff0;
+            color: #ff0;
+        }
+        
+        #debug.hide {
+            display: none;
+        }
+        
         a-scene {
             position: fixed !important;
             top: 0 !important;
             left: 0 !important;
             width: 100% !important;
             height: 100% !important;
-            z-index: 0 !important;
-        }
-        
-        /* Interface par-dessus */
-        #overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 1000;
-        }
-        
-        #loading {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(135deg, #2e7d32 0%, #81c784 100%);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            color: white;
-            font-family: Arial, sans-serif;
-            pointer-events: all;
-        }
-        
-        #loading.hide {
-            display: none;
-        }
-        
-        .spinner {
-            border: 4px solid rgba(255,255,255,0.3);
-            border-top: 4px solid white;
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            animation: spin 1s linear infinite;
-            margin-bottom: 20px;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
         }
         
         #info {
-            position: absolute;
-            bottom: 30px;
+            position: fixed;
+            bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0,0,0,0.8);
             color: white;
-            padding: 15px 30px;
-            border-radius: 25px;
-            font-family: Arial, sans-serif;
-            font-size: 16px;
-            text-align: center;
-            pointer-events: all;
-            transition: all 0.3s ease;
-        }
-        
-        #info.detected {
-            background: rgba(46, 125, 50, 0.9);
-        }
-        
-        #info.hide {
+            padding: 15px 25px;
+            border-radius: 20px;
+            z-index: 1000;
             display: none;
+        }
+        
+        #info.show {
+            display: block;
         }
     </style>
 </head>
 <body>
-    <!-- Interface overlay -->
-    <div id="overlay">
-        <div id="loading">
-            <div class="spinner"></div>
-            <h2>🌳 WoodWideWeb AR</h2>
-            <p style="margin-top: 10px; font-size: 14px; opacity: 0.9;">Initialisation...</p>
-        </div>
-        
-        <div id="info" class="hide">
-            📱 Pointez vers votre image
-        </div>
+    <!-- Écran de debug -->
+    <div id="debug">
+        <h2>🔍 WoodWideWeb AR - Mode Debug</h2>
+        <p style="margin: 10px 0; opacity: 0.7;">Diagnostic en cours...</p>
+        <div id="log"></div>
     </div>
+    
+    <!-- Info AR -->
+    <div id="info">📱 Pointez vers votre image</div>
     
     <!-- Scène AR -->
     <a-scene 
         mindar-image="imageTargetSrc: ./targets.mind"
-        color-space="sRGB"
-        renderer="colorManagement: true, physicallyCorrectLights; antialias: true"
         vr-mode-ui="enabled: false"
         device-orientation-permission-ui="enabled: false">
         
-        <a-camera position="0 0 0" look-controls="enabled: false" cursor="rayOrigin: mouse"></a-camera>
+        <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
         
         <a-entity mindar-image-target="targetIndex: 0">
             <a-video 
                 src="#vid"
                 position="0 0 0"
                 height="0.844"
-                width="1.5"
-                play-on-click>
+                width="1.5">
             </a-video>
         </a-entity>
 
@@ -150,89 +125,143 @@
     </a-scene>
 
     <script>
-        // Éléments DOM
-        const loading = document.getElementById('loading');
+        const debugDiv = document.getElementById('debug');
+        const logDiv = document.getElementById('log');
         const info = document.getElementById('info');
         const video = document.getElementById('vid');
         const scene = document.querySelector('a-scene');
         
-        let isReady = false;
-        let videoLoaded = false;
+        let stepCount = 0;
         
-        console.log('🌳 Initialisation WoodWideWeb AR');
+        function log(message, type = 'success') {
+            stepCount++;
+            const step = document.createElement('div');
+            step.className = 'step ' + type;
+            step.innerHTML = `<strong>Étape ${stepCount}:</strong> ${message}`;
+            logDiv.appendChild(step);
+            console.log(`[${stepCount}] ${message}`);
+            
+            // Scroll automatique
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
         
-        // Attendre que la vidéo soit chargée
+        // ÉTAPE 1 : Démarrage
+        log('Application démarrée', 'success');
+        log('URL : ' + window.location.href, 'success');
+        log('User Agent : ' + navigator.userAgent.substring(0, 50) + '...', 'success');
+        
+        // ÉTAPE 2 : Test targets.mind
+        log('Test du fichier targets.mind...', 'waiting');
+        fetch('./targets.mind')
+            .then(r => {
+                if (r.ok) return r.blob();
+                throw new Error('HTTP ' + r.status);
+            })
+            .then(blob => {
+                const size = (blob.size / 1024).toFixed(2);
+                log(`✅ targets.mind trouvé (${size} KB)`, 'success');
+                
+                if (blob.size < 10000) {
+                    log('⚠️ ATTENTION : Fichier très petit, peut être corrompu', 'error');
+                }
+            })
+            .catch(err => {
+                log('❌ ERREUR targets.mind : ' + err.message, 'error');
+                log('→ Le fichier targets.mind est INTROUVABLE ou corrompu', 'error');
+                log('→ Vérifiez qu\'il est bien uploadé sur GitHub', 'error');
+            });
+        
+        // ÉTAPE 3 : Test vidéo
+        log('Test de la vidéo Cloudinary...', 'waiting');
+        log('URL vidéo : ' + video.src, 'success');
+        
         video.addEventListener('loadeddata', () => {
-            console.log('✅ Vidéo chargée');
-            videoLoaded = true;
-            checkReady();
+            log('✅ Vidéo Cloudinary chargée avec succès', 'success');
+            log(`Durée : ${video.duration.toFixed(1)}s, Taille : ${video.videoWidth}x${video.videoHeight}`, 'success');
         });
         
         video.addEventListener('error', (e) => {
-            console.error('❌ Erreur vidéo:', e);
+            log('❌ ERREUR chargement vidéo', 'error');
+            log('→ Code erreur : ' + video.error.code, 'error');
+            log('→ Message : ' + video.error.message, 'error');
+            log('→ Vérifiez que l\'URL Cloudinary est correcte', 'error');
         });
         
-        // Attendre que la scène soit prête
+        // ÉTAPE 4 : Scène A-Frame
+        log('Chargement de la scène A-Frame...', 'waiting');
+        
         scene.addEventListener('loaded', () => {
-            console.log('✅ Scène A-Frame chargée');
+            log('✅ Scène A-Frame chargée', 'success');
         });
         
+        // ÉTAPE 5 : Démarrage du rendu
         scene.addEventListener('renderstart', () => {
-            console.log('✅ Rendu démarré');
-            isReady = true;
-            checkReady();
+            log('✅ Rendu A-Frame démarré', 'success');
+            
+            // ÉTAPE 6 : Mind AR
+            log('Vérification de Mind AR...', 'waiting');
+            
+            setTimeout(() => {
+                const system = scene.systems['mindar-image-system'];
+                
+                if (system) {
+                    log('✅ Système Mind AR détecté', 'success');
+                    log('Mind AR devrait démarrer automatiquement...', 'waiting');
+                    
+                    // Attendre 3 secondes pour voir si tout fonctionne
+                    setTimeout(() => {
+                        log('✅ Si vous voyez ce message, l\'initialisation est terminée', 'success');
+                        log('→ Fermez cet écran de debug dans 2 secondes...', 'success');
+                        
+                        setTimeout(() => {
+                            debugDiv.classList.add('hide');
+                            info.classList.add('show');
+                            log('🎯 Mode AR actif !', 'success');
+                        }, 2000);
+                    }, 3000);
+                } else {
+                    log('❌ ERREUR : Système Mind AR introuvable', 'error');
+                    log('→ Les scripts Mind AR ne sont pas chargés correctement', 'error');
+                }
+            }, 1000);
         });
         
-        // Vérifier si tout est prêt
-        function checkReady() {
-            if (isReady && videoLoaded) {
-                console.log('✅ Expérience prête !');
-                setTimeout(() => {
-                    loading.classList.add('hide');
-                    info.classList.remove('hide');
-                }, 500);
-            }
-        }
-        
-        // Gestion de la détection
+        // ÉTAPE 7 : Détection d'image
         const target = document.querySelector('[mindar-image-target]');
         
         if (target) {
             target.addEventListener('targetFound', () => {
-                console.log('🎯 Image détectée');
+                log('🎯 IMAGE DÉTECTÉE ! AR fonctionne !', 'success');
                 info.textContent = '🎯 Image détectée !';
-                info.classList.add('detected');
-                
-                // Lancer la vidéo
-                video.play().catch(() => {
-                    console.log('⚠️ Autoplay bloqué - tap requis');
-                    // Permettre le tap pour lancer
-                    info.textContent = '👆 Tapez pour lancer la vidéo';
-                    document.body.addEventListener('click', () => {
-                        video.play();
-                        info.textContent = '🎯 Image détectée !';
-                    }, { once: true });
-                });
+                video.play().catch(() => {});
             });
             
             target.addEventListener('targetLost', () => {
-                console.log('📍 Image perdue');
+                log('📍 Image perdue', 'waiting');
                 info.textContent = '📱 Pointez vers votre image';
-                info.classList.remove('detected');
                 video.pause();
             });
         }
         
-        // Empêcher le scroll/zoom
-        document.addEventListener('touchmove', (e) => {
-            if (e.touches.length > 1) {
-                e.preventDefault();
+        // Capture des erreurs globales
+        window.addEventListener('error', (e) => {
+            log('❌ ERREUR JavaScript : ' + e.message, 'error');
+            if (e.filename) {
+                log('→ Fichier : ' + e.filename + ':' + e.lineno, 'error');
             }
-        }, { passive: false });
-        
-        document.addEventListener('gesturestart', (e) => {
-            e.preventDefault();
         });
+        
+        // Test de la caméra
+        log('Test de la caméra...', 'waiting');
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => {
+                log('✅ Caméra autorisée', 'success');
+                stream.getTracks().forEach(t => t.stop());
+            })
+            .catch(err => {
+                log('❌ Caméra refusée ou indisponible : ' + err.message, 'error');
+                log('→ Autorisez la caméra dans les paramètres', 'error');
+            });
     </script>
 </body>
 </html>
