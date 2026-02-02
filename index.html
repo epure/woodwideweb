@@ -81,17 +81,30 @@
     
     <div id="info">📱 Pointez vers votre image</div>
     
+    <!-- 
+    ══════════════════════════════════════════════════════════
+    CONFIGURATION OPTIMALE MAXIMALE
+    ══════════════════════════════════════════════════════════
+    filterMinCF: 0.0000001  → Ultra-conservateur
+    filterBeta: 5000        → Lissage maximum absolu
+    warmupTolerance: 30     → Très tolérant au démarrage
+    missTolerance: 30       → Garde tracking très longtemps
+    maxTrack: 1             → Un seul objet pour meilleures performances
+    ══════════════════════════════════════════════════════════
+    -->
     <a-scene 
-        mindar-image="imageTargetSrc: ./targets.mind; filterMinCF: 0.000001; filterBeta: 1000; warmupTolerance: 20; missTolerance: 20; maxTrack: 1"
+        mindar-image="imageTargetSrc: ./targets.mind; filterMinCF: 0.0000001; filterBeta: 5000; warmupTolerance: 30; missTolerance: 30; maxTrack: 1"
         color-space="sRGB"
-        renderer="colorManagement: true; antialias: true; precision: high"
+        renderer="colorManagement: true; antialias: true; precision: high; logarithmicDepthBuffer: true"
         vr-mode-ui="enabled: false"
-        device-orientation-permission-ui="enabled: false">
+        device-orientation-permission-ui="enabled: false"
+        stats="false">
         
         <a-assets>
+            <!-- Vidéo optimisée pour meilleures performances -->
             <video 
                 id="vid"
-                src="https://res.cloudinary.com/dmgx02nlp/video/upload/v1770030665/WoodWideWeb_01_kj0sqr.mp4"
+                src="https://res.cloudinary.com/dmgx02nlp/video/upload/w_640,q_auto/v1770030665/WoodWideWeb_01_kj0sqr.mp4"
                 crossorigin="anonymous"
                 preload="auto"
                 playsinline
@@ -103,24 +116,93 @@
         <a-camera 
             position="0 0 0" 
             look-controls="enabled: false; magicWindowTrackingEnabled: false"
-            wasd-controls="enabled: false">
+            wasd-controls="enabled: false"
+            cursor="rayOrigin: mouse">
         </a-camera>
         
-        <!-- Vidéo avec débordement 2% pour éliminer l'espace -->
-        <a-entity mindar-image-target="targetIndex: 0">
+        <!-- 
+        ══════════════════════════════════════════════════════════
+        VIDÉO SANS DÉBORDEMENT (1:1 exact)
+        ══════════════════════════════════════════════════════════
+        width="1"   → Exactement la taille de l'image
+        height="1"  → Exactement la taille de l'image
+        + Stabilisation avancée avec moyenne mobile sur 20 frames
+        ══════════════════════════════════════════════════════════
+        -->
+        <a-entity mindar-image-target="targetIndex: 0" smooth-transform="speed: 0.15; bufferSize: 20">
             <a-plane
-                material="src: #vid; shader: flat; side: double; transparent: false"
+                material="src: #vid; shader: flat; side: double; transparent: false; depthTest: true; depthWrite: true"
                 position="0 0 0"
                 rotation="0 0 0"
-                width="1.02"
-                height="1.02"
+                width="1"
+                height="1"
                 geometry="primitive: plane">
             </a-plane>
         </a-entity>
     </a-scene>
 
     <script>
-        console.log('🌳 WoodWideWeb AR - Version finale');
+        // ═══════════════════════════════════════════════════════
+        // COMPOSANT DE STABILISATION AVANCÉ
+        // Utilise une moyenne mobile sur plusieurs frames
+        // pour un mouvement ultra-lisse
+        // ═══════════════════════════════════════════════════════
+        AFRAME.registerComponent('smooth-transform', {
+            schema: {
+                speed: {type: 'number', default: 0.1},
+                bufferSize: {type: 'number', default: 15}
+            },
+            
+            init: function() {
+                // Buffers pour moyenner les transformations sur plusieurs frames
+                this.positionBuffer = [];
+                this.rotationBuffer = [];
+                this.maxBufferSize = this.data.bufferSize;
+                
+                this.smoothPosition = new THREE.Vector3();
+                this.smoothRotation = new THREE.Quaternion();
+                
+                console.log(`🔒 Stabilisation avancée : ${this.data.bufferSize} frames, vitesse ${this.data.speed}`);
+            },
+            
+            tick: function() {
+                const el = this.el;
+                const object3D = el.object3D;
+                
+                // Ajouter position actuelle au buffer
+                this.positionBuffer.push(object3D.position.clone());
+                if (this.positionBuffer.length > this.maxBufferSize) {
+                    this.positionBuffer.shift();
+                }
+                
+                // Ajouter rotation actuelle au buffer
+                this.rotationBuffer.push(object3D.quaternion.clone());
+                if (this.rotationBuffer.length > this.maxBufferSize) {
+                    this.rotationBuffer.shift();
+                }
+                
+                // Calculer la moyenne des positions
+                this.smoothPosition.set(0, 0, 0);
+                this.positionBuffer.forEach(pos => {
+                    this.smoothPosition.add(pos);
+                });
+                this.smoothPosition.divideScalar(this.positionBuffer.length);
+                
+                // Calculer la moyenne des rotations (interpolation sphérique progressive)
+                if (this.rotationBuffer.length > 0) {
+                    this.smoothRotation.copy(this.rotationBuffer[0]);
+                    for (let i = 1; i < this.rotationBuffer.length; i++) {
+                        this.smoothRotation.slerp(this.rotationBuffer[i], 1 / (i + 1));
+                    }
+                }
+                
+                // Appliquer les valeurs lissées avec interpolation douce
+                object3D.position.lerp(this.smoothPosition, this.data.speed);
+                object3D.quaternion.slerp(this.smoothRotation, this.data.speed);
+            }
+        });
+        
+        console.log('🌳 WoodWideWeb AR - Version finale optimisée');
         
         const loading = document.getElementById('loading');
         const info = document.getElementById('info');
@@ -129,7 +211,7 @@
         const target = document.querySelector('[mindar-image-target]');
         
         scene.addEventListener('loaded', () => {
-            console.log('✅ Scène prête');
+            console.log('✅ Scène prête - Optimisations maximales actives');
             setTimeout(() => {
                 loading.classList.add('hide');
                 info.classList.add('show');
