@@ -83,17 +83,16 @@
     
     <!-- 
     ══════════════════════════════════════════════════════════
-    CONFIGURATION OPTIMALE MAXIMALE
+    LISSAGE MAXIMUM ABSOLU
     ══════════════════════════════════════════════════════════
-    filterMinCF: 0.0000001  → Ultra-conservateur
-    filterBeta: 5000        → Lissage maximum absolu
-    warmupTolerance: 30     → Très tolérant au démarrage
-    missTolerance: 30       → Garde tracking très longtemps
-    maxTrack: 1             → Un seul objet pour meilleures performances
+    filterMinCF: 0.00000001 → 10x plus conservateur qu'avant
+    filterBeta: 10000       → Doublé (lissage maximum absolu)
+    warmupTolerance: 50     → Très élevé
+    missTolerance: 50       → Très élevé
     ══════════════════════════════════════════════════════════
     -->
     <a-scene 
-        mindar-image="imageTargetSrc: ./targets.mind; filterMinCF: 0.0000001; filterBeta: 5000; warmupTolerance: 30; missTolerance: 30; maxTrack: 1"
+        mindar-image="imageTargetSrc: ./targets.mind; filterMinCF: 0.00000001; filterBeta: 10000; warmupTolerance: 50; missTolerance: 50; maxTrack: 1"
         color-space="sRGB"
         renderer="colorManagement: true; antialias: true; precision: high; logarithmicDepthBuffer: true"
         vr-mode-ui="enabled: false"
@@ -101,7 +100,6 @@
         stats="false">
         
         <a-assets>
-            <!-- Vidéo optimisée pour meilleures performances -->
             <video 
                 id="vid"
                 src="https://res.cloudinary.com/dmgx02nlp/video/upload/w_640,q_auto/v1770030665/WoodWideWeb_01_kj0sqr.mp4"
@@ -122,14 +120,14 @@
         
         <!-- 
         ══════════════════════════════════════════════════════════
-        VIDÉO SANS DÉBORDEMENT (1:1 exact)
+        STABILISATION ULTRA-LISSÉE
         ══════════════════════════════════════════════════════════
-        width="1"   → Exactement la taille de l'image
-        height="1"  → Exactement la taille de l'image
-        + Stabilisation avancée avec moyenne mobile sur 20 frames
+        speed: 0.08        → Vitesse très lente (était 0.15)
+        bufferSize: 40     → Moyenne sur 40 frames (était 20)
+        = Lissage 2x plus fort
         ══════════════════════════════════════════════════════════
         -->
-        <a-entity mindar-image-target="targetIndex: 0" smooth-transform="speed: 0.15; bufferSize: 20">
+        <a-entity mindar-image-target="targetIndex: 0" smooth-transform="speed: 0.08; bufferSize: 40">
             <a-plane
                 material="src: #vid; shader: flat; side: double; transparent: false; depthTest: true; depthWrite: true"
                 position="0 0 0"
@@ -143,9 +141,8 @@
 
     <script>
         // ═══════════════════════════════════════════════════════
-        // COMPOSANT DE STABILISATION AVANCÉ
-        // Utilise une moyenne mobile sur plusieurs frames
-        // pour un mouvement ultra-lisse
+        // COMPOSANT DE STABILISATION ULTRA-LISSÉ
+        // Moyenne mobile sur 40 frames pour stabilité maximale
         // ═══════════════════════════════════════════════════════
         AFRAME.registerComponent('smooth-transform', {
             schema: {
@@ -154,7 +151,6 @@
             },
             
             init: function() {
-                // Buffers pour moyenner les transformations sur plusieurs frames
                 this.positionBuffer = [];
                 this.rotationBuffer = [];
                 this.maxBufferSize = this.data.bufferSize;
@@ -162,7 +158,7 @@
                 this.smoothPosition = new THREE.Vector3();
                 this.smoothRotation = new THREE.Quaternion();
                 
-                console.log(`🔒 Stabilisation avancée : ${this.data.bufferSize} frames, vitesse ${this.data.speed}`);
+                console.log(`🔒 Stabilisation MAXIMUM : ${this.data.bufferSize} frames, vitesse ${this.data.speed}`);
             },
             
             tick: function() {
@@ -188,7 +184,7 @@
                 });
                 this.smoothPosition.divideScalar(this.positionBuffer.length);
                 
-                // Calculer la moyenne des rotations (interpolation sphérique progressive)
+                // Calculer la moyenne des rotations
                 if (this.rotationBuffer.length > 0) {
                     this.smoothRotation.copy(this.rotationBuffer[0]);
                     for (let i = 1; i < this.rotationBuffer.length; i++) {
@@ -196,13 +192,13 @@
                     }
                 }
                 
-                // Appliquer les valeurs lissées avec interpolation douce
+                // Appliquer avec interpolation très lente
                 object3D.position.lerp(this.smoothPosition, this.data.speed);
                 object3D.quaternion.slerp(this.smoothRotation, this.data.speed);
             }
         });
         
-        console.log('🌳 WoodWideWeb AR - Version finale optimisée');
+        console.log('🌳 WoodWideWeb AR - Lissage maximum');
         
         const loading = document.getElementById('loading');
         const info = document.getElementById('info');
@@ -211,7 +207,7 @@
         const target = document.querySelector('[mindar-image-target]');
         
         scene.addEventListener('loaded', () => {
-            console.log('✅ Scène prête - Optimisations maximales actives');
+            console.log('✅ Scène prête - Lissage MAXIMUM actif');
             setTimeout(() => {
                 loading.classList.add('hide');
                 info.classList.add('show');
