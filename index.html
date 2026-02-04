@@ -77,8 +77,15 @@
         <div id="progress-bar"></div>
     </div>
     
+    <!-- 
+    ══════════════════════════════════════════════════════════
+    CONFIGURATION EXTRÊME
+    ══════════════════════════════════════════════════════════
+    filterBeta: 150         → Lissage Mind AR très fort
+    ══════════════════════════════════════════════════════════
+    -->
     <a-scene 
-        mindar-image="imageTargetSrc: ./targets.mind; uiScanning: no; filterMinCF: 0.001; filterBeta: 100; warmupTolerance: 5; missTolerance: 5"
+        mindar-image="imageTargetSrc: ./targets.mind; uiScanning: no; filterMinCF: 0.001; filterBeta: 150; warmupTolerance: 5; missTolerance: 5"
         color-space="sRGB"
         renderer="colorManagement: true; antialias: true"
         vr-mode-ui="enabled: false"
@@ -104,14 +111,14 @@
         
         <!-- 
         ══════════════════════════════════════════════════════════
-        ANTI-TREMBLEMENT ULTRA-AGRESSIF
+        ANTI-TREMBLEMENT MAXIMUM ABSOLU
         ══════════════════════════════════════════════════════════
-        stabilityThreshold: 0.002  → 4x plus tolérant (était 0.0005)
-        stabilityFrames: 15        → Se fige 2x plus vite (était 30)
-        lerpSpeed: 0.1             → Transitions plus douces (était 0.15)
+        stabilityThreshold: 0.004  → 8x plus tolérant qu'origine
+        stabilityFrames: 10        → Gel en ~160ms (ultra-rapide)
+        lerpSpeed: 0.08            → Transitions ultra-douces
         ══════════════════════════════════════════════════════════
         -->
-        <a-entity mindar-image-target="targetIndex: 0" smooth-stable="stabilityThreshold: 0.002; stabilityFrames: 15; lerpSpeed: 0.1">
+        <a-entity mindar-image-target="targetIndex: 0" smooth-stable="stabilityThreshold: 0.004; stabilityFrames: 10; lerpSpeed: 0.08">
             <a-plane
                 material="src: #vid; shader: flat; side: front; transparent: false"
                 position="0 0 0"
@@ -126,9 +133,9 @@
     <script>
         AFRAME.registerComponent('smooth-stable', {
             schema: {
-                stabilityThreshold: {type: 'number', default: 0.002},
-                stabilityFrames: {type: 'number', default: 15},
-                lerpSpeed: {type: 'number', default: 0.1}
+                stabilityThreshold: {type: 'number', default: 0.004},
+                stabilityFrames: {type: 'number', default: 10},
+                lerpSpeed: {type: 'number', default: 0.08}
             },
             
             init: function() {
@@ -143,10 +150,10 @@
                 this.stableCounter = 0;
                 this.isStable = false;
                 
-                console.log('🔒 Smooth-stable ULTRA activé');
-                console.log(`   Seuil: ${this.data.stabilityThreshold} (4x plus tolérant)`);
-                console.log(`   Frames: ${this.data.stabilityFrames} (2x plus rapide)`);
-                console.log(`   Lerp: ${this.data.lerpSpeed} (plus doux)`);
+                console.log('🔒🔒🔒 SMOOTH-STABLE EXTRÊME activé 🔒🔒🔒');
+                console.log(`   Seuil: ${this.data.stabilityThreshold} (8x plus tolérant)`);
+                console.log(`   Frames: ${this.data.stabilityFrames} (gel ultra-rapide)`);
+                console.log(`   Lerp: ${this.data.lerpSpeed} (ultra-doux)`);
             },
             
             tick: function() {
@@ -159,21 +166,21 @@
                 // Calculer le mouvement depuis la dernière frame
                 const movementDistance = this.targetPosition.distanceTo(this.lastPosition);
                 
-                // Vérifier si stable (seuil augmenté = ignore plus de mouvements)
+                // Vérifier si stable (seuil TRÈS élevé = ignore BEAUCOUP de mouvements)
                 if (movementDistance < this.data.stabilityThreshold) {
                     this.stableCounter++;
                     
-                    // Si stable pendant N frames, figer (frames réduit = fige plus vite)
+                    // Si stable pendant N frames, figer (frames très réduit = fige TRÈS vite)
                     if (this.stableCounter >= this.data.stabilityFrames && !this.isStable) {
                         this.isStable = true;
                         this.stablePosition.copy(this.targetPosition);
                         this.stableRotation.copy(this.targetRotation);
-                        console.log('🔒 Position figée');
+                        console.log('🔒 Position FIGÉE (mode extrême)');
                     }
                 } else {
                     // Mouvement significatif détecté
                     if (this.isStable) {
-                        console.log('🔓 Mouvement détecté');
+                        console.log('🔓 Mouvement important détecté');
                     }
                     this.stableCounter = 0;
                     this.isStable = false;
@@ -185,7 +192,7 @@
                     object3D.position.copy(this.stablePosition);
                     object3D.quaternion.copy(this.stableRotation);
                 } else {
-                    // Mode mouvement : interpoler doucement (lerp réduit = plus doux)
+                    // Mode mouvement : interpoler TRÈS doucement
                     object3D.position.lerp(this.targetPosition, this.data.lerpSpeed);
                     object3D.quaternion.slerp(this.targetRotation, this.data.lerpSpeed);
                 }
@@ -196,7 +203,7 @@
             }
         });
         
-        console.log('Wood Wide Web AR - Ultra-stable');
+        console.log('Wood Wide Web AR - VERSION EXTRÊME');
         
         const loading = document.getElementById('loading');
         const progressBar = document.getElementById('progress-bar');
@@ -274,3 +281,75 @@
     </script>
 </body>
 </html>
+```
+
+---
+
+## ✅ VERSION EXTRÊME - PARAMÈTRES MAXIMUM
+
+### **Configuration finale :**
+
+| Paramètre | Valeur précédente | **VERSION EXTRÊME** |
+|-----------|-------------------|---------------------|
+| **stabilityThreshold** | 0.002 | **0.004** (8x origine) |
+| **stabilityFrames** | 15 (~250ms) | **10 (~160ms)** |
+| **lerpSpeed** | 0.1 | **0.08** |
+| **filterBeta** | 100 | **150** |
+
+---
+
+## 🎯 EFFET MAXIMUM ABSOLU
+
+**stabilityThreshold: 0.004**
+- Ignore les mouvements < 4mm
+- **8x plus tolérant** que la version initiale (0.0005)
+- Quasi aucun micro-mouvement ne passe
+
+**stabilityFrames: 10**
+- Se fige en **~160ms** (10 frames à 60fps)
+- Presque instantané
+
+**lerpSpeed: 0.08**
+- Transitions **ultra-douces**
+- Presque imperceptibles
+
+**filterBeta: 150**
+- Lissage Mind AR **très fort**
+
+---
+
+## 🔒 RÉSULTAT ATTENDU
+
+**Avec cette configuration EXTRÊME :**
+
+✅ **Gel ultra-rapide** : 160ms après stabilisation  
+✅ **Tolérance maximum** : Ignore 8x plus de mouvements  
+✅ **Aucun tremblement** : Vidéo parfaitement immobile  
+✅ **Transitions invisibles** : Interpolation ultra-lente  
+
+---
+
+## ⚠️ COMPROMIS (Normal avec paramètres extrêmes)
+
+**Cette version est la plus stable possible, mais :**
+
+⚠️ **Très "figée"** : Vidéo reste immobile même avec petits mouvements de main  
+⚠️ **Moins réactive** : Suit les mouvements avec retard visible  
+⚠️ **Peut sembler "collée"** : Ne bouge presque pas  
+
+**C'est le prix de la stabilité maximale !**
+
+---
+
+## 📊 ÉCHELLE COMPLÈTE
+```
+Origine (tremblait beaucoup)
+├─ threshold: 0.0005, frames: 30, lerp: 0.15
+
+Amélioré
+├─ threshold: 0.002, frames: 15, lerp: 0.1
+
+VERSION EXTRÊME (actuelle)
+└─ threshold: 0.004, frames: 10, lerp: 0.08  🔒🔒🔒
+   ↑
+   MAXIMUM ABSOLU
