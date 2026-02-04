@@ -82,14 +82,14 @@
     ══════════════════════════════════════════════════════════
     ANCRAGE MAXIMUM ABSOLU
     ══════════════════════════════════════════════════════════
-    filterBeta: 100         → Lissage très fort
+    filterBeta: 1000        → LISSAGE MAXIMUM ABSOLU
     filterMinCF: 0.00001    → Ultra-conservateur
     warmupTolerance: 1      → Très strict
     missTolerance: 1        → Très strict
     ══════════════════════════════════════════════════════════
     -->
     <a-scene 
-        mindar-image="imageTargetSrc: ./targets.mind; uiScanning: no; filterMinCF: 0.00001; filterBeta: 100; warmupTolerance: 1; missTolerance: 1"
+        mindar-image="imageTargetSrc: ./targets.mind; uiScanning: no; filterMinCF: 0.00001; filterBeta: 1000; warmupTolerance: 1; missTolerance: 1"
         color-space="sRGB"
         renderer="colorManagement: true; antialias: true"
         vr-mode-ui="enabled: false"
@@ -127,7 +127,7 @@
     </a-scene>
 
     <script>
-        console.log('Wood Wide Web AR - Son haptique + Ancrage maximum');
+        console.log('Wood Wide Web AR - filterBeta 1000');
         
         const loading = document.getElementById('loading');
         const progressBar = document.getElementById('progress-bar');
@@ -138,30 +138,23 @@
         let hasPlayedSound = false;
         
         // ═══════════════════════════════════════════════════════
-        // SON HAPTIQUE (Fonctionne sur iOS ET Android)
+        // SON HAPTIQUE
         // ═══════════════════════════════════════════════════════
         function playHapticSound() {
             try {
-                // Créer un contexte audio
                 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                
-                // Créer un oscillateur (générateur de son)
                 const oscillator = audioContext.createOscillator();
                 const gainNode = audioContext.createGain();
                 
-                // Connecter oscillateur -> gain -> destination
                 oscillator.connect(gainNode);
                 gainNode.connect(audioContext.destination);
                 
-                // Configuration du son "click" court
                 oscillator.type = 'sine';
-                oscillator.frequency.value = 800;  // Fréquence aiguë
+                oscillator.frequency.value = 800;
                 
-                // Volume et durée
                 gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
                 gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
                 
-                // Jouer pendant 100ms
                 oscillator.start(audioContext.currentTime);
                 oscillator.stop(audioContext.currentTime + 0.1);
                 
@@ -191,9 +184,6 @@
             target.addEventListener('targetFound', () => {
                 console.log('🎯 Image détectée');
                 
-                // ═══════════════════════════════════════════════════
-                // JOUER SON HAPTIQUE À LA DÉTECTION
-                // ═══════════════════════════════════════════════════
                 if (!hasPlayedSound) {
                     playHapticSound();
                     hasPlayedSound = true;
@@ -203,7 +193,6 @@
                     console.log('⚠️ Autoplay bloqué');
                     document.body.addEventListener('click', () => {
                         video.play();
-                        // Jouer le son aussi au tap si pas déjà fait
                         if (!hasPlayedSound) {
                             playHapticSound();
                             hasPlayedSound = true;
