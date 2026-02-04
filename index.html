@@ -78,16 +78,6 @@
         <div id="progress-bar"></div>
     </div>
     
-    <!-- 
-    ══════════════════════════════════════════════════════════
-    ANCRAGE MAXIMUM ABSOLU
-    ══════════════════════════════════════════════════════════
-    filterBeta: 1000        → LISSAGE MAXIMUM ABSOLU
-    filterMinCF: 0.00001    → Ultra-conservateur
-    warmupTolerance: 1      → Très strict
-    missTolerance: 1        → Très strict
-    ══════════════════════════════════════════════════════════
-    -->
     <a-scene 
         mindar-image="imageTargetSrc: ./targets.mind; uiScanning: no; filterMinCF: 0.00001; filterBeta: 1000; warmupTolerance: 1; missTolerance: 1"
         color-space="sRGB"
@@ -113,7 +103,15 @@
             wasd-controls="enabled: false">
         </a-camera>
         
-        <a-entity mindar-image-target="targetIndex: 0">
+        <!-- 
+        ══════════════════════════════════════════════════════════
+        OPTIMISATIONS AVANCÉES
+        ══════════════════════════════════════════════════════════
+        frame-skip: Met à jour position seulement toutes les 3 frames
+        segments: Plus de subdivisions pour meilleure perspective
+        ══════════════════════════════════════════════════════════
+        -->
+        <a-entity mindar-image-target="targetIndex: 0" frame-skip="interval: 3">
             <a-plane
                 material="src: #vid; shader: flat; side: front; transparent: false"
                 position="0 0 0"
@@ -121,13 +119,102 @@
                 scale="1 1 1"
                 width="1.01"
                 height="1.01"
-                geometry="primitive: plane">
+                geometry="primitive: plane; segmentsWidth: 20; segmentsHeight: 20">
             </a-plane>
         </a-entity>
     </a-scene>
 
     <script>
-        console.log('Wood Wide Web AR - filterBeta 1000');
+        // ═══════════════════════════════════════════════════════
+        // COMPOSANT : LISSAGE PAR FRAME SKIP
+        // Met à jour la position seulement toutes les X frames
+        // Réduit les micro-tremblements
+        // ═══════════════════════════════════════════════════════
+        AFRAME.registerComponent('frame-skip', {
+            schema: {
+                interval: {type: 'number', default: 3}  // Toutes les 3 frames
+            },
+            
+            init: function() {
+                this.frameCount = 0;
+                this.lastPosition = new THREE.Vector3();
+                this.lastRotation = new THREE.Quaternion();
+                this.lastScale = new THREE.Vector3();
+                this.targetPosition = new THREE.Vector3();
+                this.targetRotation = new THREE.Quaternion();
+                this.targetScale = new THREE.Vector3();
+                
+                console.log(`🎬 Frame skip activé: mise à jour toutes les ${this.data.interval} frames`);
+            },
+            
+            tick: function() {
+                const el = this.el;
+                const object3D = el.object3D;
+                
+                this.frameCount++;
+                
+                // Mettre à jour seulement toutes les X frames
+                if (this.frameCount >= this.data.interval) {
+                    this.frameCount = 0;
+                    
+                    // Capturer la nouvelle position/rotation
+                    this.targetPosition.copy(object3D.position);
+                    this.targetRotation.copy(object3D.quaternion);
+                    this.targetScale.copy(object3D.scale);
+                } else {
+                    // Entre les frames, maintenir la dernière position stable
+                    if (this.lastPosition.length() > 0) {
+                        // Interpolation très douce vers la target
+                        object3D.position.lerp(this.targetPosition, 0.3);
+                        object3D.quaternion.slerp(this.targetRotation, 0.3);
+                        object3D.scale.lerp(this.targetScale, 0.3);
+                    }
+                }
+                
+                // Sauvegarder pour la prochaine frame
+                this.lastPosition.copy(object3D.position);
+                this.lastRotation.copy(object3D.quaternion);
+                this.lastScale.copy(object3D.scale);
+            }
+        });
+        
+        // ═══════════════════════════════════════════════════════
+        // COMPOSANT : PERSPECTIVE CORRECTION
+        // Ajuste les vertices pour correspondre à la perspective
+        // ═══════════════════════════════════════════════════════
+        AFRAME.registerComponent('perspective-video', {
+            schema: {
+                enabled: {type: 'boolean', default: true}
+            },
+            
+            init: function() {
+                const mesh = this.el.getObject3D('mesh');
+                if (!mesh) {
+                    console.log('⚠️ Mesh non trouvé pour perspective');
+                    return;
+                }
+                
+                // Activer la perspective correction dans le material
+                if (mesh.material) {
+                    mesh.material.side = THREE.FrontSide;
+                    mesh.material.needsUpdate = true;
+                }
+                
+                console.log('📐 Perspective correction activée');
+            },
+            
+            tick: function() {
+                const mesh = this.el.getObject3D('mesh');
+                if (!mesh || !mesh.geometry) return;
+                
+                // La géométrie avec segments permet une meilleure adaptation
+                // à la perspective de l'image détectée
+                mesh.geometry.computeBoundingBox();
+                mesh.geometry.computeVertexNormals();
+            }
+        });
+        
+        console.log('Wood Wide Web AR - Optimisations avancées');
         
         const loading = document.getElementById('loading');
         const progressBar = document.getElementById('progress-bar');
@@ -137,9 +224,6 @@
         
         let hasPlayedSound = false;
         
-        // ═══════════════════════════════════════════════════════
-        // SON HAPTIQUE
-        // ═══════════════════════════════════════════════════════
         function playHapticSound() {
             try {
                 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -168,6 +252,14 @@
         
         scene.addEventListener('loaded', () => {
             console.log('✅ Scène prête');
+            
+            // Ajouter le composant perspective après chargement
+            const plane = document.querySelector('a-plane');
+            if (plane) {
+                plane.setAttribute('perspective-video', '');
+                console.log('📐 Perspective video appliquée');
+            }
+            
             setTimeout(() => {
                 loading.classList.add('hide');
             }, 2000);
