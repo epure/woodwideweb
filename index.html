@@ -50,7 +50,6 @@
             font-weight: 400;
         }
         
-        /* Barre de progression permanente 10px */
         #progress-container {
             position: fixed;
             bottom: 0;
@@ -75,24 +74,22 @@
         <p style="margin-top: 10px; font-size: 14px; opacity: 0.9;">Initialisation...</p>
     </div>
     
-    <!-- Barre de progression permanente -->
     <div id="progress-container">
         <div id="progress-bar"></div>
     </div>
     
     <!-- 
     ══════════════════════════════════════════════════════════
-    PARAMÈTRES OPTIMISÉS POUR ANCRAGE SOLIDE
+    ANCRAGE MAXIMUM ABSOLU
     ══════════════════════════════════════════════════════════
-    uiScanning: no          → Supprime la barre blanche
-    filterMinCF: 0.0001     → Plus conservateur qu'avant
-    filterBeta: 10          → Lissage fort (équilibre)
-    warmupTolerance: 2      → Plus strict
-    missTolerance: 2        → Plus strict
+    filterBeta: 100         → Lissage très fort
+    filterMinCF: 0.00001    → Ultra-conservateur
+    warmupTolerance: 1      → Très strict
+    missTolerance: 1        → Très strict
     ══════════════════════════════════════════════════════════
     -->
     <a-scene 
-        mindar-image="imageTargetSrc: ./targets.mind; uiScanning: no; filterMinCF: 0.0001; filterBeta: 10; warmupTolerance: 2; missTolerance: 2"
+        mindar-image="imageTargetSrc: ./targets.mind; uiScanning: no; filterMinCF: 0.00001; filterBeta: 100; warmupTolerance: 1; missTolerance: 1"
         color-space="sRGB"
         renderer="colorManagement: true; antialias: true"
         vr-mode-ui="enabled: false"
@@ -116,14 +113,6 @@
             wasd-controls="enabled: false">
         </a-camera>
         
-        <!-- 
-        ══════════════════════════════════════════════════════════
-        ANCRAGE RENFORCÉ
-        ══════════════════════════════════════════════════════════
-        La vidéo est strictement attachée au target
-        Scale fixe pour éviter les déformations
-        ══════════════════════════════════════════════════════════
-        -->
         <a-entity mindar-image-target="targetIndex: 0">
             <a-plane
                 material="src: #vid; shader: flat; side: front; transparent: false"
@@ -132,14 +121,13 @@
                 scale="1 1 1"
                 width="1.01"
                 height="1.01"
-                geometry="primitive: plane"
-                animation__scale="property: scale; to: 1 1 1; dur: 1; easing: linear">
+                geometry="primitive: plane">
             </a-plane>
         </a-entity>
     </a-scene>
 
     <script>
-        console.log('Wood Wide Web AR - Ancrage renforcé');
+        console.log('Wood Wide Web AR - Son haptique + Ancrage maximum');
         
         const loading = document.getElementById('loading');
         const progressBar = document.getElementById('progress-bar');
@@ -147,7 +135,43 @@
         const scene = document.querySelector('a-scene');
         const target = document.querySelector('[mindar-image-target]');
         
-        let hasVibrated = false;
+        let hasPlayedSound = false;
+        
+        // ═══════════════════════════════════════════════════════
+        // SON HAPTIQUE (Fonctionne sur iOS ET Android)
+        // ═══════════════════════════════════════════════════════
+        function playHapticSound() {
+            try {
+                // Créer un contexte audio
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // Créer un oscillateur (générateur de son)
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                // Connecter oscillateur -> gain -> destination
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                // Configuration du son "click" court
+                oscillator.type = 'sine';
+                oscillator.frequency.value = 800;  // Fréquence aiguë
+                
+                // Volume et durée
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+                
+                // Jouer pendant 100ms
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.1);
+                
+                console.log('🔊 Son haptique joué');
+                return true;
+            } catch (e) {
+                console.log('⚠️ Son haptique échoué:', e);
+                return false;
+            }
+        }
         
         scene.addEventListener('loaded', () => {
             console.log('✅ Scène prête');
@@ -156,7 +180,6 @@
             }, 2000);
         });
         
-        // Mettre à jour la barre de progression pendant la lecture
         video.addEventListener('timeupdate', () => {
             if (video.duration > 0) {
                 const percent = (video.currentTime / video.duration) * 100;
@@ -169,48 +192,22 @@
                 console.log('🎯 Image détectée');
                 
                 // ═══════════════════════════════════════════════════
-                // VIBRATION RENFORCÉE (avec plusieurs tentatives)
+                // JOUER SON HAPTIQUE À LA DÉTECTION
                 // ═══════════════════════════════════════════════════
-                if (!hasVibrated) {
-                    // Tester si l'API est disponible
-                    if ('vibrate' in navigator) {
-                        try {
-                            // Vibration plus longue et pattern
-                            const didVibrate = navigator.vibrate([400, 100, 200]);
-                            console.log('📳 Vibration déclenchée:', didVibrate);
-                            hasVibrated = true;
-                        } catch (e) {
-                            console.log('⚠️ Vibration échouée:', e);
-                        }
-                    } else {
-                        console.log('⚠️ API Vibration non disponible');
-                    }
-                    
-                    // Alternative: utiliser l'API Haptics pour iOS
-                    if (window.navigator && window.navigator.vibrate === undefined) {
-                        // Tentative pour iOS (ne fonctionne que si permis)
-                        try {
-                            window.AudioContext = window.AudioContext || window.webkitAudioContext;
-                            const context = new AudioContext();
-                            const oscillator = context.createOscillator();
-                            const gainNode = context.createGain();
-                            oscillator.connect(gainNode);
-                            gainNode.connect(context.destination);
-                            gainNode.gain.value = 0;
-                            oscillator.start(0);
-                            oscillator.stop(0.1);
-                            console.log('📳 Tentative vibration iOS');
-                        } catch (e) {
-                            console.log('⚠️ Vibration iOS non disponible');
-                        }
-                    }
+                if (!hasPlayedSound) {
+                    playHapticSound();
+                    hasPlayedSound = true;
                 }
                 
                 video.play().catch(() => {
-                    console.log('⚠️ Autoplay bloqué - interaction requise');
+                    console.log('⚠️ Autoplay bloqué');
                     document.body.addEventListener('click', () => {
                         video.play();
-                        console.log('▶️ Lecture après interaction');
+                        // Jouer le son aussi au tap si pas déjà fait
+                        if (!hasPlayedSound) {
+                            playHapticSound();
+                            hasPlayedSound = true;
+                        }
                     }, { once: true });
                 });
             });
@@ -219,7 +216,7 @@
                 console.log('📍 Image perdue');
                 video.pause();
                 progressBar.style.width = '0%';
-                hasVibrated = false;
+                hasPlayedSound = false;
             });
         }
         
