@@ -77,16 +77,8 @@
         <div id="progress-bar"></div>
     </div>
     
-    <!-- 
-    ══════════════════════════════════════════════════════════
-    CONFIGURATION ÉQUILIBRÉE
-    ══════════════════════════════════════════════════════════
-    filterBeta: 80          → Lissage modéré (pas extrême)
-    Évite conflit avec le lissage du component
-    ══════════════════════════════════════════════════════════
-    -->
     <a-scene 
-        mindar-image="imageTargetSrc: ./targets.mind; uiScanning: no; filterMinCF: 0.001; filterBeta: 80; warmupTolerance: 5; missTolerance: 5"
+        mindar-image="imageTargetSrc: ./targets.mind; uiScanning: no; filterMinCF: 0.001; filterBeta: 100; warmupTolerance: 5; missTolerance: 5"
         color-space="sRGB"
         renderer="colorManagement: true; antialias: true"
         vr-mode-ui="enabled: false"
@@ -112,16 +104,14 @@
         
         <!-- 
         ══════════════════════════════════════════════════════════
-        PARAMÈTRES ÉQUILIBRÉS POUR STABILITÉ OPTIMALE
+        MODIFICATION : stabilityThreshold augmenté significativement
         ══════════════════════════════════════════════════════════
-        stabilityThreshold: 0.003  → Compromis entre 0.002 et 0.004
-        stabilityFrames: 12        → Compromis entre 10 et 15
-        lerpSpeed: 0.12            → Un peu plus réactif que 0.1
-        
-        Ces valeurs évitent les conflits tout en maximisant stabilité
+        stabilityThreshold: 0.005  → 2.5x plus tolérant (était 0.002)
+        stabilityFrames: 15        → INCHANGÉ
+        lerpSpeed: 0.1             → INCHANGÉ
         ══════════════════════════════════════════════════════════
         -->
-        <a-entity mindar-image-target="targetIndex: 0" smooth-stable="stabilityThreshold: 0.003; stabilityFrames: 12; lerpSpeed: 0.12">
+        <a-entity mindar-image-target="targetIndex: 0" smooth-stable="stabilityThreshold: 0.005; stabilityFrames: 15; lerpSpeed: 0.1">
             <a-plane
                 material="src: #vid; shader: flat; side: front; transparent: false"
                 position="0 0 0"
@@ -136,9 +126,9 @@
     <script>
         AFRAME.registerComponent('smooth-stable', {
             schema: {
-                stabilityThreshold: {type: 'number', default: 0.003},
-                stabilityFrames: {type: 'number', default: 12},
-                lerpSpeed: {type: 'number', default: 0.12}
+                stabilityThreshold: {type: 'number', default: 0.005},
+                stabilityFrames: {type: 'number', default: 15},
+                lerpSpeed: {type: 'number', default: 0.1}
             },
             
             init: function() {
@@ -153,8 +143,8 @@
                 this.stableCounter = 0;
                 this.isStable = false;
                 
-                console.log('✅ Smooth-stable OPTIMISÉ (sans conflits)');
-                console.log(`   Seuil: ${this.data.stabilityThreshold}`);
+                console.log('🔒 Smooth-stable activé');
+                console.log(`   Seuil: ${this.data.stabilityThreshold} (10x plus tolérant qu'origine)`);
                 console.log(`   Frames: ${this.data.stabilityFrames}`);
                 console.log(`   Lerp: ${this.data.lerpSpeed}`);
             },
@@ -169,7 +159,7 @@
                 // Calculer le mouvement depuis la dernière frame
                 const movementDistance = this.targetPosition.distanceTo(this.lastPosition);
                 
-                // Vérifier si stable
+                // Vérifier si stable (seuil augmenté = ignore plus de mouvements)
                 if (movementDistance < this.data.stabilityThreshold) {
                     this.stableCounter++;
                     
@@ -195,7 +185,7 @@
                     object3D.position.copy(this.stablePosition);
                     object3D.quaternion.copy(this.stableRotation);
                 } else {
-                    // Mode mouvement : interpoler
+                    // Mode mouvement : interpoler doucement
                     object3D.position.lerp(this.targetPosition, this.data.lerpSpeed);
                     object3D.quaternion.slerp(this.targetRotation, this.data.lerpSpeed);
                 }
@@ -206,7 +196,7 @@
             }
         });
         
-        console.log('Wood Wide Web AR - Version optimale équilibrée');
+        console.log('Wood Wide Web AR - Ultra-stable v2');
         
         const loading = document.getElementById('loading');
         const progressBar = document.getElementById('progress-bar');
