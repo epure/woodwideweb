@@ -80,13 +80,21 @@
         <div id="progress-bar"></div>
     </div>
     
+    <!-- 
+    ══════════════════════════════════════════════════════════
+    PARAMÈTRES OPTIMISÉS SELON DOCUMENTATION MIND AR
+    ══════════════════════════════════════════════════════════
+    uiScanning: no          → Supprime la barre blanche
+    filterMinCF: 0.001      → Valeur recommandée (pas trop extrême)
+    filterBeta: 0.01        → Valeur recommandée (lissage modéré)
+    ══════════════════════════════════════════════════════════
+    -->
     <a-scene 
-        mindar-image="imageTargetSrc: ./targets.mind; filterMinCF: 0.00000001; filterBeta: 10000; warmupTolerance: 50; missTolerance: 50; maxTrack: 1"
+        mindar-image="imageTargetSrc: ./targets.mind; uiScanning: no; filterMinCF: 0.001; filterBeta: 0.01; warmupTolerance: 5; missTolerance: 5"
         color-space="sRGB"
-        renderer="colorManagement: true; antialias: true; precision: high; logarithmicDepthBuffer: true"
+        renderer="colorManagement: true; antialias: true"
         vr-mode-ui="enabled: false"
-        device-orientation-permission-ui="enabled: false"
-        stats="false">
+        device-orientation-permission-ui="enabled: false">
         
         <a-assets>
             <video 
@@ -102,14 +110,13 @@
         
         <a-camera 
             position="0 0 0" 
-            look-controls="enabled: false; magicWindowTrackingEnabled: false"
-            wasd-controls="enabled: false"
-            cursor="rayOrigin: mouse">
+            look-controls="enabled: false"
+            wasd-controls="enabled: false">
         </a-camera>
         
-        <a-entity mindar-image-target="targetIndex: 0" smooth-transform="speed: 0.08; bufferSize: 40">
+        <a-entity mindar-image-target="targetIndex: 0">
             <a-plane
-                material="src: #vid; shader: flat; side: double; transparent: false; depthTest: true; depthWrite: true"
+                material="src: #vid; shader: flat; side: double"
                 position="0 0 0"
                 rotation="0 0 0"
                 width="1.01"
@@ -120,62 +127,15 @@
     </a-scene>
 
     <script>
-        AFRAME.registerComponent('smooth-transform', {
-            schema: {
-                speed: {type: 'number', default: 0.1},
-                bufferSize: {type: 'number', default: 15}
-            },
-            
-            init: function() {
-                this.positionBuffer = [];
-                this.rotationBuffer = [];
-                this.maxBufferSize = this.data.bufferSize;
-                
-                this.smoothPosition = new THREE.Vector3();
-                this.smoothRotation = new THREE.Quaternion();
-                
-                console.log(`🔒 Stabilisation MAXIMUM : ${this.data.bufferSize} frames, vitesse ${this.data.speed}`);
-            },
-            
-            tick: function() {
-                const el = this.el;
-                const object3D = el.object3D;
-                
-                this.positionBuffer.push(object3D.position.clone());
-                if (this.positionBuffer.length > this.maxBufferSize) {
-                    this.positionBuffer.shift();
-                }
-                
-                this.rotationBuffer.push(object3D.quaternion.clone());
-                if (this.rotationBuffer.length > this.maxBufferSize) {
-                    this.rotationBuffer.shift();
-                }
-                
-                this.smoothPosition.set(0, 0, 0);
-                this.positionBuffer.forEach(pos => {
-                    this.smoothPosition.add(pos);
-                });
-                this.smoothPosition.divideScalar(this.positionBuffer.length);
-                
-                if (this.rotationBuffer.length > 0) {
-                    this.smoothRotation.copy(this.rotationBuffer[0]);
-                    for (let i = 1; i < this.rotationBuffer.length; i++) {
-                        this.smoothRotation.slerp(this.rotationBuffer[i], 1 / (i + 1));
-                    }
-                }
-                
-                object3D.position.lerp(this.smoothPosition, this.data.speed);
-                object3D.quaternion.slerp(this.smoothRotation, this.data.speed);
-            }
-        });
-        
-        console.log('Wood Wide Web AR - Version finale optimisée');
+        console.log('Wood Wide Web AR - Version optimisée');
         
         const loading = document.getElementById('loading');
         const progressBar = document.getElementById('progress-bar');
         const video = document.getElementById('vid');
         const scene = document.querySelector('a-scene');
         const target = document.querySelector('[mindar-image-target]');
+        
+        let hasVibrated = false;
         
         scene.addEventListener('loaded', () => {
             console.log('✅ Scène prête');
@@ -196,6 +156,15 @@
             target.addEventListener('targetFound', () => {
                 console.log('Image détectée');
                 
+                // ═══════════════════════════════════════════════════
+                // VIBRATION À LA DÉTECTION
+                // ═══════════════════════════════════════════════════
+                if (!hasVibrated && navigator.vibrate) {
+                    navigator.vibrate(200);  // Vibration de 200ms
+                    hasVibrated = true;
+                    console.log('📳 Vibration');
+                }
+                
                 video.play().catch(() => {
                     console.log('Autoplay bloqué - interaction requise');
                     document.body.addEventListener('click', () => {
@@ -207,14 +176,13 @@
             target.addEventListener('targetLost', () => {
                 console.log('Image perdue');
                 video.pause();
-                // Remettre la barre à 0%
                 progressBar.style.width = '0%';
+                hasVibrated = false;  // Reset pour la prochaine détection
             });
         }
         
         video.addEventListener('ended', () => {
             console.log('Vidéo terminée');
-            // Barre reste à 100%
         });
     </script>
 </body>
