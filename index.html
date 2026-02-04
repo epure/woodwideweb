@@ -77,8 +77,16 @@
         <div id="progress-bar"></div>
     </div>
     
+    <!-- 
+    ══════════════════════════════════════════════════════════
+    PARAMÈTRES OPTIMISÉS
+    ══════════════════════════════════════════════════════════
+    filterBeta: 500         → Réduit pour plus de réactivité
+    filterMinCF: 0.0001     → Conservateur mais pas extrême
+    ══════════════════════════════════════════════════════════
+    -->
     <a-scene 
-        mindar-image="imageTargetSrc: ./targets.mind; uiScanning: no; filterMinCF: 0.00001; filterBeta: 1000; warmupTolerance: 1; missTolerance: 1"
+        mindar-image="imageTargetSrc: ./targets.mind; uiScanning: no; filterMinCF: 0.0001; filterBeta: 500; warmupTolerance: 1; missTolerance: 1"
         color-space="sRGB"
         renderer="colorManagement: true; antialias: true"
         vr-mode-ui="enabled: false"
@@ -104,115 +112,153 @@
         
         <!-- 
         ══════════════════════════════════════════════════════════
-        LISSAGE ULTRA-AGRESSIF
+        ANCRAGE PAR 4 COINS
         ══════════════════════════════════════════════════════════
-        interval: 5          → Update toutes les 5 frames
-        deadzone: 0.001      → Ignore les micro-mouvements
-        smoothing: 20        → Moyenne mobile sur 20 positions
+        corner-pin: Force les 4 coins de la vidéo sur les 4 coins
+                    de l'image détectée
+        segments: 30x30 pour déformation fluide
         ══════════════════════════════════════════════════════════
         -->
-        <a-entity mindar-image-target="targetIndex: 0" ultra-smooth="interval: 5; deadzone: 0.001; smoothing: 20">
+        <a-entity mindar-image-target="targetIndex: 0">
             <a-plane
+                id="video-plane"
                 material="src: #vid; shader: flat; side: front; transparent: false"
                 position="0 0 0"
                 rotation="0 0 0"
-                scale="1 1 1"
                 width="1.01"
                 height="1.01"
-                geometry="primitive: plane; segmentsWidth: 20; segmentsHeight: 20">
+                geometry="primitive: plane; segmentsWidth: 30; segmentsHeight: 30"
+                corner-pin="updateInterval: 3; smoothness: 0.15">
             </a-plane>
         </a-entity>
     </a-scene>
 
     <script>
         // ═══════════════════════════════════════════════════════
-        // COMPOSANT ULTRA-SMOOTH
-        // Combine : Frame-skip + Dead zone + Moyenne mobile
+        // COMPOSANT CORNER-PIN
+        // Épingle les 4 coins de la vidéo aux 4 coins de l'image
         // ═══════════════════════════════════════════════════════
-        AFRAME.registerComponent('ultra-smooth', {
+        AFRAME.registerComponent('corner-pin', {
             schema: {
-                interval: {type: 'number', default: 5},
-                deadzone: {type: 'number', default: 0.001},
-                smoothing: {type: 'number', default: 20}
+                updateInterval: {type: 'number', default: 3},
+                smoothness: {type: 'number', default: 0.15}
             },
             
             init: function() {
+                const mesh = this.el.getObject3D('mesh');
+                if (!mesh || !mesh.geometry) {
+                    console.error('❌ Mesh ou géométrie non trouvée');
+                    return;
+                }
+                
+                this.mesh = mesh;
+                this.geometry = mesh.geometry;
+                
+                // Sauvegarder les positions originales des vertices
+                this.originalPositions = [];
+                const positions = this.geometry.attributes.position.array;
+                for (let i = 0; i < positions.length; i += 3) {
+                    this.originalPositions.push(
+                        new THREE.Vector3(positions[i], positions[i+1], positions[i+2])
+                    );
+                }
+                
+                // Position lissée des coins
+                this.smoothCorners = [
+                    new THREE.Vector3(-0.505, 0.505, 0),   // Top-left
+                    new THREE.Vector3(0.505, 0.505, 0),    // Top-right
+                    new THREE.Vector3(0.505, -0.505, 0),   // Bottom-right
+                    new THREE.Vector3(-0.505, -0.505, 0)   // Bottom-left
+                ];
+                
                 this.frameCount = 0;
                 
-                // Historique des positions pour moyenne mobile
-                this.positionHistory = [];
-                this.rotationHistory = [];
-                
-                // Position actuelle lissée
-                this.smoothPosition = new THREE.Vector3();
-                this.smoothRotation = new THREE.Quaternion();
-                
-                // Dernière position acceptée
-                this.lastAcceptedPosition = new THREE.Vector3();
-                this.lastAcceptedRotation = new THREE.Quaternion();
-                
-                console.log(`🎯 Ultra-smooth: interval=${this.data.interval}, deadzone=${this.data.deadzone}, smoothing=${this.data.smoothing}`);
+                console.log('📍 Corner-pin activé: ancrage par 4 coins');
+                console.log(`   Segments: ${this.geometry.parameters.widthSegments}x${this.geometry.parameters.heightSegments}`);
             },
             
             tick: function() {
-                const el = this.el;
-                const object3D = el.object3D;
+                if (!this.mesh || !this.geometry) return;
                 
                 this.frameCount++;
                 
                 // Mettre à jour seulement toutes les X frames
-                if (this.frameCount >= this.data.interval) {
-                    this.frameCount = 0;
-                    
-                    const currentPos = object3D.position.clone();
-                    const currentRot = object3D.quaternion.clone();
-                    
-                    // DEAD ZONE : Ignorer les micro-mouvements
-                    const distance = currentPos.distanceTo(this.lastAcceptedPosition);
-                    if (distance < this.data.deadzone && this.lastAcceptedPosition.length() > 0) {
-                        // Mouvement trop petit, on ignore
-                        return;
-                    }
-                    
-                    // Ajouter à l'historique
-                    this.positionHistory.push(currentPos);
-                    this.rotationHistory.push(currentRot);
-                    
-                    // Garder seulement les N dernières positions
-                    if (this.positionHistory.length > this.data.smoothing) {
-                        this.positionHistory.shift();
-                        this.rotationHistory.shift();
-                    }
-                    
-                    // Calculer la moyenne mobile
-                    this.smoothPosition.set(0, 0, 0);
-                    this.positionHistory.forEach(pos => {
-                        this.smoothPosition.add(pos);
-                    });
-                    this.smoothPosition.divideScalar(this.positionHistory.length);
-                    
-                    // Moyenne des rotations
-                    if (this.rotationHistory.length > 0) {
-                        this.smoothRotation.copy(this.rotationHistory[0]);
-                        for (let i = 1; i < this.rotationHistory.length; i++) {
-                            this.smoothRotation.slerp(this.rotationHistory[i], 1 / (i + 1));
-                        }
-                    }
-                    
-                    // Sauvegarder comme dernière position acceptée
-                    this.lastAcceptedPosition.copy(currentPos);
-                    this.lastAcceptedRotation.copy(currentRot);
+                if (this.frameCount % this.data.updateInterval !== 0) {
+                    return;
                 }
                 
-                // Appliquer la position lissée avec interpolation douce
-                if (this.positionHistory.length > 0) {
-                    object3D.position.lerp(this.smoothPosition, 0.2);
-                    object3D.quaternion.slerp(this.smoothRotation, 0.2);
+                const parent = this.el.parentEl;
+                if (!parent) return;
+                
+                const parentObject3D = parent.object3D;
+                const worldMatrix = new THREE.Matrix4();
+                parentObject3D.updateMatrixWorld(true);
+                worldMatrix.copy(parentObject3D.matrixWorld);
+                
+                // Calculer les 4 coins dans l'espace world
+                const halfSize = 0.505;
+                const corners = [
+                    new THREE.Vector3(-halfSize, halfSize, 0),    // Top-left
+                    new THREE.Vector3(halfSize, halfSize, 0),     // Top-right
+                    new THREE.Vector3(halfSize, -halfSize, 0),    // Bottom-right
+                    new THREE.Vector3(-halfSize, -halfSize, 0)    // Bottom-left
+                ];
+                
+                // Appliquer la transformation world aux coins
+                corners.forEach((corner, i) => {
+                    corner.applyMatrix4(worldMatrix);
+                    // Lisser vers la nouvelle position
+                    this.smoothCorners[i].lerp(corner, this.data.smoothness);
+                });
+                
+                // Inverser la transformation pour avoir en local
+                const invMatrix = new THREE.Matrix4().copy(this.mesh.matrixWorld).invert();
+                const localCorners = this.smoothCorners.map(corner => {
+                    return corner.clone().applyMatrix4(invMatrix);
+                });
+                
+                // Déformer la grille pour correspondre aux coins
+                this.deformGrid(localCorners);
+                
+                this.geometry.attributes.position.needsUpdate = true;
+                this.geometry.computeVertexNormals();
+            },
+            
+            deformGrid: function(corners) {
+                const positions = this.geometry.attributes.position;
+                const segmentsW = this.geometry.parameters.widthSegments;
+                const segmentsH = this.geometry.parameters.heightSegments;
+                
+                for (let i = 0; i <= segmentsH; i++) {
+                    for (let j = 0; j <= segmentsW; j++) {
+                        const index = (i * (segmentsW + 1) + j) * 3;
+                        
+                        // Coordonnées normalisées [0,1]
+                        const u = j / segmentsW;
+                        const v = i / segmentsH;
+                        
+                        // Interpolation bilinéaire des 4 coins
+                        const topLeft = corners[0];
+                        const topRight = corners[1];
+                        const bottomRight = corners[2];
+                        const bottomLeft = corners[3];
+                        
+                        // Interpoler horizontalement
+                        const top = new THREE.Vector3().lerpVectors(topLeft, topRight, u);
+                        const bottom = new THREE.Vector3().lerpVectors(bottomLeft, bottomRight, u);
+                        
+                        // Interpoler verticalement
+                        const position = new THREE.Vector3().lerpVectors(top, bottom, v);
+                        
+                        positions.array[index] = position.x;
+                        positions.array[index + 1] = position.y;
+                        positions.array[index + 2] = position.z;
+                    }
                 }
             }
         });
         
-        console.log('Wood Wide Web AR - Ultra-smooth V1');
+        console.log('Wood Wide Web AR - Corner Pin Version');
         
         const loading = document.getElementById('loading');
         const progressBar = document.getElementById('progress-bar');
@@ -290,3 +336,30 @@
     </script>
 </body>
 </html>
+```
+
+---
+
+## ✅ SYSTÈME D'ANCRAGE PAR 4 COINS
+
+### **Comment ça fonctionne :**
+```
+Image détectée (Mind AR)
+    ↓
+Calcule les 4 coins dans l'espace 3D
+    ↓
+Déforme la grille vidéo (30x30 vertices)
+    ↓
+Force chaque coin de la vidéo sur le coin correspondant
+    ↓
+Interpolation bilinéaire pour le reste de la grille
+```
+
+### **Interpolation bilinéaire :**
+```
+TL────────TR
+│          │
+│   Grille │  ← Chaque vertex est interpolé
+│   30x30  │     entre les 4 coins
+│          │
+BL────────BR
