@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Wood Wide Web AR</title>
     
-    <!-- Police IBM Plex Mono depuis Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -105,13 +104,14 @@
         
         <!-- 
         ══════════════════════════════════════════════════════════
-        OPTIMISATIONS AVANCÉES
+        LISSAGE ULTRA-AGRESSIF
         ══════════════════════════════════════════════════════════
-        frame-skip: Met à jour position seulement toutes les 3 frames
-        segments: Plus de subdivisions pour meilleure perspective
+        interval: 5          → Update toutes les 5 frames
+        deadzone: 0.001      → Ignore les micro-mouvements
+        smoothing: 20        → Moyenne mobile sur 20 positions
         ══════════════════════════════════════════════════════════
         -->
-        <a-entity mindar-image-target="targetIndex: 0" frame-skip="interval: 3">
+        <a-entity mindar-image-target="targetIndex: 0" ultra-smooth="interval: 5; deadzone: 0.001; smoothing: 20">
             <a-plane
                 material="src: #vid; shader: flat; side: front; transparent: false"
                 position="0 0 0"
@@ -126,25 +126,32 @@
 
     <script>
         // ═══════════════════════════════════════════════════════
-        // COMPOSANT : LISSAGE PAR FRAME SKIP
-        // Met à jour la position seulement toutes les X frames
-        // Réduit les micro-tremblements
+        // COMPOSANT ULTRA-SMOOTH
+        // Combine : Frame-skip + Dead zone + Moyenne mobile
         // ═══════════════════════════════════════════════════════
-        AFRAME.registerComponent('frame-skip', {
+        AFRAME.registerComponent('ultra-smooth', {
             schema: {
-                interval: {type: 'number', default: 3}  // Toutes les 3 frames
+                interval: {type: 'number', default: 5},
+                deadzone: {type: 'number', default: 0.001},
+                smoothing: {type: 'number', default: 20}
             },
             
             init: function() {
                 this.frameCount = 0;
-                this.lastPosition = new THREE.Vector3();
-                this.lastRotation = new THREE.Quaternion();
-                this.lastScale = new THREE.Vector3();
-                this.targetPosition = new THREE.Vector3();
-                this.targetRotation = new THREE.Quaternion();
-                this.targetScale = new THREE.Vector3();
                 
-                console.log(`🎬 Frame skip activé: mise à jour toutes les ${this.data.interval} frames`);
+                // Historique des positions pour moyenne mobile
+                this.positionHistory = [];
+                this.rotationHistory = [];
+                
+                // Position actuelle lissée
+                this.smoothPosition = new THREE.Vector3();
+                this.smoothRotation = new THREE.Quaternion();
+                
+                // Dernière position acceptée
+                this.lastAcceptedPosition = new THREE.Vector3();
+                this.lastAcceptedRotation = new THREE.Quaternion();
+                
+                console.log(`🎯 Ultra-smooth: interval=${this.data.interval}, deadzone=${this.data.deadzone}, smoothing=${this.data.smoothing}`);
             },
             
             tick: function() {
@@ -157,64 +164,55 @@
                 if (this.frameCount >= this.data.interval) {
                     this.frameCount = 0;
                     
-                    // Capturer la nouvelle position/rotation
-                    this.targetPosition.copy(object3D.position);
-                    this.targetRotation.copy(object3D.quaternion);
-                    this.targetScale.copy(object3D.scale);
-                } else {
-                    // Entre les frames, maintenir la dernière position stable
-                    if (this.lastPosition.length() > 0) {
-                        // Interpolation très douce vers la target
-                        object3D.position.lerp(this.targetPosition, 0.3);
-                        object3D.quaternion.slerp(this.targetRotation, 0.3);
-                        object3D.scale.lerp(this.targetScale, 0.3);
+                    const currentPos = object3D.position.clone();
+                    const currentRot = object3D.quaternion.clone();
+                    
+                    // DEAD ZONE : Ignorer les micro-mouvements
+                    const distance = currentPos.distanceTo(this.lastAcceptedPosition);
+                    if (distance < this.data.deadzone && this.lastAcceptedPosition.length() > 0) {
+                        // Mouvement trop petit, on ignore
+                        return;
                     }
+                    
+                    // Ajouter à l'historique
+                    this.positionHistory.push(currentPos);
+                    this.rotationHistory.push(currentRot);
+                    
+                    // Garder seulement les N dernières positions
+                    if (this.positionHistory.length > this.data.smoothing) {
+                        this.positionHistory.shift();
+                        this.rotationHistory.shift();
+                    }
+                    
+                    // Calculer la moyenne mobile
+                    this.smoothPosition.set(0, 0, 0);
+                    this.positionHistory.forEach(pos => {
+                        this.smoothPosition.add(pos);
+                    });
+                    this.smoothPosition.divideScalar(this.positionHistory.length);
+                    
+                    // Moyenne des rotations
+                    if (this.rotationHistory.length > 0) {
+                        this.smoothRotation.copy(this.rotationHistory[0]);
+                        for (let i = 1; i < this.rotationHistory.length; i++) {
+                            this.smoothRotation.slerp(this.rotationHistory[i], 1 / (i + 1));
+                        }
+                    }
+                    
+                    // Sauvegarder comme dernière position acceptée
+                    this.lastAcceptedPosition.copy(currentPos);
+                    this.lastAcceptedRotation.copy(currentRot);
                 }
                 
-                // Sauvegarder pour la prochaine frame
-                this.lastPosition.copy(object3D.position);
-                this.lastRotation.copy(object3D.quaternion);
-                this.lastScale.copy(object3D.scale);
+                // Appliquer la position lissée avec interpolation douce
+                if (this.positionHistory.length > 0) {
+                    object3D.position.lerp(this.smoothPosition, 0.2);
+                    object3D.quaternion.slerp(this.smoothRotation, 0.2);
+                }
             }
         });
         
-        // ═══════════════════════════════════════════════════════
-        // COMPOSANT : PERSPECTIVE CORRECTION
-        // Ajuste les vertices pour correspondre à la perspective
-        // ═══════════════════════════════════════════════════════
-        AFRAME.registerComponent('perspective-video', {
-            schema: {
-                enabled: {type: 'boolean', default: true}
-            },
-            
-            init: function() {
-                const mesh = this.el.getObject3D('mesh');
-                if (!mesh) {
-                    console.log('⚠️ Mesh non trouvé pour perspective');
-                    return;
-                }
-                
-                // Activer la perspective correction dans le material
-                if (mesh.material) {
-                    mesh.material.side = THREE.FrontSide;
-                    mesh.material.needsUpdate = true;
-                }
-                
-                console.log('📐 Perspective correction activée');
-            },
-            
-            tick: function() {
-                const mesh = this.el.getObject3D('mesh');
-                if (!mesh || !mesh.geometry) return;
-                
-                // La géométrie avec segments permet une meilleure adaptation
-                // à la perspective de l'image détectée
-                mesh.geometry.computeBoundingBox();
-                mesh.geometry.computeVertexNormals();
-            }
-        });
-        
-        console.log('Wood Wide Web AR - Optimisations avancées');
+        console.log('Wood Wide Web AR - Ultra-smooth V1');
         
         const loading = document.getElementById('loading');
         const progressBar = document.getElementById('progress-bar');
@@ -242,24 +240,13 @@
                 oscillator.start(audioContext.currentTime);
                 oscillator.stop(audioContext.currentTime + 0.1);
                 
-                console.log('🔊 Son haptique joué');
                 return true;
             } catch (e) {
-                console.log('⚠️ Son haptique échoué:', e);
                 return false;
             }
         }
         
         scene.addEventListener('loaded', () => {
-            console.log('✅ Scène prête');
-            
-            // Ajouter le composant perspective après chargement
-            const plane = document.querySelector('a-plane');
-            if (plane) {
-                plane.setAttribute('perspective-video', '');
-                console.log('📐 Perspective video appliquée');
-            }
-            
             setTimeout(() => {
                 loading.classList.add('hide');
             }, 2000);
@@ -274,15 +261,12 @@
         
         if (target) {
             target.addEventListener('targetFound', () => {
-                console.log('🎯 Image détectée');
-                
                 if (!hasPlayedSound) {
                     playHapticSound();
                     hasPlayedSound = true;
                 }
                 
                 video.play().catch(() => {
-                    console.log('⚠️ Autoplay bloqué');
                     document.body.addEventListener('click', () => {
                         video.play();
                         if (!hasPlayedSound) {
@@ -294,7 +278,6 @@
             });
             
             target.addEventListener('targetLost', () => {
-                console.log('📍 Image perdue');
                 video.pause();
                 progressBar.style.width = '0%';
                 hasPlayedSound = false;
