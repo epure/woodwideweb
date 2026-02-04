@@ -77,16 +77,8 @@
         <div id="progress-bar"></div>
     </div>
     
-    <!-- 
-    ══════════════════════════════════════════════════════════
-    CONFIGURATION OPTIMALE SIMPLE
-    ══════════════════════════════════════════════════════════
-    filterBeta: 50          → Lissage modéré (pas extrême)
-    filterMinCF: 0.001      → Conservateur mais équilibré
-    ══════════════════════════════════════════════════════════
-    -->
     <a-scene 
-        mindar-image="imageTargetSrc: ./targets.mind; uiScanning: no; filterMinCF: 0.001; filterBeta: 50; warmupTolerance: 5; missTolerance: 5"
+        mindar-image="imageTargetSrc: ./targets.mind; uiScanning: no; filterMinCF: 0.001; filterBeta: 100; warmupTolerance: 5; missTolerance: 5"
         color-space="sRGB"
         renderer="colorManagement: true; antialias: true"
         vr-mode-ui="enabled: false"
@@ -112,12 +104,14 @@
         
         <!-- 
         ══════════════════════════════════════════════════════════
-        STABILISATION SIMPLE ET EFFICACE
+        ANTI-TREMBLEMENT ULTRA-AGRESSIF
         ══════════════════════════════════════════════════════════
-        smooth-stable: Détecte stabilité et fige la position
+        stabilityThreshold: 0.002  → 4x plus tolérant (était 0.0005)
+        stabilityFrames: 15        → Se fige 2x plus vite (était 30)
+        lerpSpeed: 0.1             → Transitions plus douces (était 0.15)
         ══════════════════════════════════════════════════════════
         -->
-        <a-entity mindar-image-target="targetIndex: 0" smooth-stable>
+        <a-entity mindar-image-target="targetIndex: 0" smooth-stable="stabilityThreshold: 0.002; stabilityFrames: 15; lerpSpeed: 0.1">
             <a-plane
                 material="src: #vid; shader: flat; side: front; transparent: false"
                 position="0 0 0"
@@ -130,15 +124,11 @@
     </a-scene>
 
     <script>
-        // ═══════════════════════════════════════════════════════
-        // COMPOSANT SMOOTH-STABLE
-        // Détecte quand l'image est stable et fige la position
-        // ═══════════════════════════════════════════════════════
         AFRAME.registerComponent('smooth-stable', {
             schema: {
-                stabilityThreshold: {type: 'number', default: 0.0005},
-                stabilityFrames: {type: 'number', default: 30},
-                lerpSpeed: {type: 'number', default: 0.15}
+                stabilityThreshold: {type: 'number', default: 0.002},
+                stabilityFrames: {type: 'number', default: 15},
+                lerpSpeed: {type: 'number', default: 0.1}
             },
             
             init: function() {
@@ -153,7 +143,10 @@
                 this.stableCounter = 0;
                 this.isStable = false;
                 
-                console.log('🎯 Smooth-stable activé');
+                console.log('🔒 Smooth-stable ULTRA activé');
+                console.log(`   Seuil: ${this.data.stabilityThreshold} (4x plus tolérant)`);
+                console.log(`   Frames: ${this.data.stabilityFrames} (2x plus rapide)`);
+                console.log(`   Lerp: ${this.data.lerpSpeed} (plus doux)`);
             },
             
             tick: function() {
@@ -166,19 +159,19 @@
                 // Calculer le mouvement depuis la dernière frame
                 const movementDistance = this.targetPosition.distanceTo(this.lastPosition);
                 
-                // Vérifier si stable
+                // Vérifier si stable (seuil augmenté = ignore plus de mouvements)
                 if (movementDistance < this.data.stabilityThreshold) {
                     this.stableCounter++;
                     
-                    // Si stable pendant N frames, figer
+                    // Si stable pendant N frames, figer (frames réduit = fige plus vite)
                     if (this.stableCounter >= this.data.stabilityFrames && !this.isStable) {
                         this.isStable = true;
                         this.stablePosition.copy(this.targetPosition);
                         this.stableRotation.copy(this.targetRotation);
-                        console.log('🔒 Position figée (stable)');
+                        console.log('🔒 Position figée');
                     }
                 } else {
-                    // Mouvement détecté, désactiver le mode stable
+                    // Mouvement significatif détecté
                     if (this.isStable) {
                         console.log('🔓 Mouvement détecté');
                     }
@@ -192,7 +185,7 @@
                     object3D.position.copy(this.stablePosition);
                     object3D.quaternion.copy(this.stableRotation);
                 } else {
-                    // Mode mouvement : interpoler doucement
+                    // Mode mouvement : interpoler doucement (lerp réduit = plus doux)
                     object3D.position.lerp(this.targetPosition, this.data.lerpSpeed);
                     object3D.quaternion.slerp(this.targetRotation, this.data.lerpSpeed);
                 }
@@ -203,7 +196,7 @@
             }
         });
         
-        console.log('Wood Wide Web AR - Version stable simple');
+        console.log('Wood Wide Web AR - Ultra-stable');
         
         const loading = document.getElementById('loading');
         const progressBar = document.getElementById('progress-bar');
