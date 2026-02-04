@@ -79,14 +79,14 @@
     
     <!-- 
     ══════════════════════════════════════════════════════════
-    PARAMÈTRES OPTIMISÉS
+    OPTIMISATION POUR FLUIDITÉ MAXIMALE
     ══════════════════════════════════════════════════════════
-    filterBeta: 500         → Réduit pour plus de réactivité
-    filterMinCF: 0.0001     → Conservateur mais pas extrême
+    filterBeta: 1000        → Lissage Mind AR très fort
+    filterMinCF: 0.00001    → Ultra-conservateur
     ══════════════════════════════════════════════════════════
     -->
     <a-scene 
-        mindar-image="imageTargetSrc: ./targets.mind; uiScanning: no; filterMinCF: 0.0001; filterBeta: 500; warmupTolerance: 1; missTolerance: 1"
+        mindar-image="imageTargetSrc: ./targets.mind; uiScanning: no; filterMinCF: 0.00001; filterBeta: 1000; warmupTolerance: 1; missTolerance: 1"
         color-space="sRGB"
         renderer="colorManagement: true; antialias: true"
         vr-mode-ui="enabled: false"
@@ -112,11 +112,11 @@
         
         <!-- 
         ══════════════════════════════════════════════════════════
-        ANCRAGE PAR 4 COINS
+        ANCRAGE FLUIDE PAR 4 COINS
         ══════════════════════════════════════════════════════════
-        corner-pin: Force les 4 coins de la vidéo sur les 4 coins
-                    de l'image détectée
-        segments: 30x30 pour déformation fluide
+        updateInterval: 8    → Update toutes les 8 frames (~133ms)
+        smoothness: 0.08     → Interpolation très lente/fluide
+        deadzone: 0.002      → Ignore micro-mouvements
         ══════════════════════════════════════════════════════════
         -->
         <a-entity mindar-image-target="targetIndex: 0">
@@ -128,20 +128,20 @@
                 width="1.01"
                 height="1.01"
                 geometry="primitive: plane; segmentsWidth: 30; segmentsHeight: 30"
-                corner-pin="updateInterval: 3; smoothness: 0.15">
+                corner-pin="updateInterval: 8; smoothness: 0.08; deadzone: 0.002">
             </a-plane>
         </a-entity>
     </a-scene>
 
     <script>
         // ═══════════════════════════════════════════════════════
-        // COMPOSANT CORNER-PIN
-        // Épingle les 4 coins de la vidéo aux 4 coins de l'image
+        // COMPOSANT CORNER-PIN OPTIMISÉ POUR FLUIDITÉ
         // ═══════════════════════════════════════════════════════
         AFRAME.registerComponent('corner-pin', {
             schema: {
-                updateInterval: {type: 'number', default: 3},
-                smoothness: {type: 'number', default: 0.15}
+                updateInterval: {type: 'number', default: 8},
+                smoothness: {type: 'number', default: 0.08},
+                deadzone: {type: 'number', default: 0.002}
             },
             
             init: function() {
@@ -163,7 +163,7 @@
                     );
                 }
                 
-                // Position lissée des coins
+                // Position lissée des coins avec historique
                 this.smoothCorners = [
                     new THREE.Vector3(-0.505, 0.505, 0),   // Top-left
                     new THREE.Vector3(0.505, 0.505, 0),    // Top-right
@@ -171,10 +171,20 @@
                     new THREE.Vector3(-0.505, -0.505, 0)   // Bottom-left
                 ];
                 
+                // Dernière position acceptée pour dead zone
+                this.lastAcceptedCorners = [
+                    new THREE.Vector3(-0.505, 0.505, 0),
+                    new THREE.Vector3(0.505, 0.505, 0),
+                    new THREE.Vector3(0.505, -0.505, 0),
+                    new THREE.Vector3(-0.505, -0.505, 0)
+                ];
+                
                 this.frameCount = 0;
                 
-                console.log('📍 Corner-pin activé: ancrage par 4 coins');
-                console.log(`   Segments: ${this.geometry.parameters.widthSegments}x${this.geometry.parameters.heightSegments}`);
+                console.log('📍 Corner-pin FLUIDE activé');
+                console.log(`   Update interval: ${this.data.updateInterval} frames`);
+                console.log(`   Smoothness: ${this.data.smoothness}`);
+                console.log(`   Dead zone: ${this.data.deadzone}`);
             },
             
             tick: function() {
@@ -205,9 +215,30 @@
                 ];
                 
                 // Appliquer la transformation world aux coins
+                corners.forEach(corner => corner.applyMatrix4(worldMatrix));
+                
+                // DEAD ZONE : Vérifier si le mouvement est significatif
+                let significantMovement = false;
+                for (let i = 0; i < 4; i++) {
+                    const distance = corners[i].distanceTo(this.lastAcceptedCorners[i]);
+                    if (distance > this.data.deadzone) {
+                        significantMovement = true;
+                        break;
+                    }
+                }
+                
+                // Si mouvement trop petit, ignorer
+                if (!significantMovement) {
+                    return;
+                }
+                
+                // Sauvegarder comme dernière position acceptée
                 corners.forEach((corner, i) => {
-                    corner.applyMatrix4(worldMatrix);
-                    // Lisser vers la nouvelle position
+                    this.lastAcceptedCorners[i].copy(corner);
+                });
+                
+                // Lisser TRÈS doucement vers la nouvelle position
+                corners.forEach((corner, i) => {
                     this.smoothCorners[i].lerp(corner, this.data.smoothness);
                 });
                 
@@ -258,7 +289,7 @@
             }
         });
         
-        console.log('Wood Wide Web AR - Corner Pin Version');
+        console.log('Wood Wide Web AR - Fluidité maximale');
         
         const loading = document.getElementById('loading');
         const progressBar = document.getElementById('progress-bar');
@@ -336,30 +367,3 @@
     </script>
 </body>
 </html>
-```
-
----
-
-## ✅ SYSTÈME D'ANCRAGE PAR 4 COINS
-
-### **Comment ça fonctionne :**
-```
-Image détectée (Mind AR)
-    ↓
-Calcule les 4 coins dans l'espace 3D
-    ↓
-Déforme la grille vidéo (30x30 vertices)
-    ↓
-Force chaque coin de la vidéo sur le coin correspondant
-    ↓
-Interpolation bilinéaire pour le reste de la grille
-```
-
-### **Interpolation bilinéaire :**
-```
-TL────────TR
-│          │
-│   Grille │  ← Chaque vertex est interpolé
-│   30x30  │     entre les 4 coins
-│          │
-BL────────BR
