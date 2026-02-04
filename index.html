@@ -79,14 +79,14 @@
     
     <!-- 
     ══════════════════════════════════════════════════════════
-    OPTIMISATION POUR FLUIDITÉ MAXIMALE
+    CONFIGURATION OPTIMALE SIMPLE
     ══════════════════════════════════════════════════════════
-    filterBeta: 1000        → Lissage Mind AR très fort
-    filterMinCF: 0.00001    → Ultra-conservateur
+    filterBeta: 50          → Lissage modéré (pas extrême)
+    filterMinCF: 0.001      → Conservateur mais équilibré
     ══════════════════════════════════════════════════════════
     -->
     <a-scene 
-        mindar-image="imageTargetSrc: ./targets.mind; uiScanning: no; filterMinCF: 0.00001; filterBeta: 1000; warmupTolerance: 1; missTolerance: 1"
+        mindar-image="imageTargetSrc: ./targets.mind; uiScanning: no; filterMinCF: 0.001; filterBeta: 50; warmupTolerance: 5; missTolerance: 5"
         color-space="sRGB"
         renderer="colorManagement: true; antialias: true"
         vr-mode-ui="enabled: false"
@@ -112,184 +112,98 @@
         
         <!-- 
         ══════════════════════════════════════════════════════════
-        ANCRAGE FLUIDE PAR 4 COINS
+        STABILISATION SIMPLE ET EFFICACE
         ══════════════════════════════════════════════════════════
-        updateInterval: 8    → Update toutes les 8 frames (~133ms)
-        smoothness: 0.08     → Interpolation très lente/fluide
-        deadzone: 0.002      → Ignore micro-mouvements
+        smooth-stable: Détecte stabilité et fige la position
         ══════════════════════════════════════════════════════════
         -->
-        <a-entity mindar-image-target="targetIndex: 0">
+        <a-entity mindar-image-target="targetIndex: 0" smooth-stable>
             <a-plane
-                id="video-plane"
                 material="src: #vid; shader: flat; side: front; transparent: false"
                 position="0 0 0"
                 rotation="0 0 0"
                 width="1.01"
                 height="1.01"
-                geometry="primitive: plane; segmentsWidth: 30; segmentsHeight: 30"
-                corner-pin="updateInterval: 8; smoothness: 0.08; deadzone: 0.002">
+                geometry="primitive: plane">
             </a-plane>
         </a-entity>
     </a-scene>
 
     <script>
         // ═══════════════════════════════════════════════════════
-        // COMPOSANT CORNER-PIN OPTIMISÉ POUR FLUIDITÉ
+        // COMPOSANT SMOOTH-STABLE
+        // Détecte quand l'image est stable et fige la position
         // ═══════════════════════════════════════════════════════
-        AFRAME.registerComponent('corner-pin', {
+        AFRAME.registerComponent('smooth-stable', {
             schema: {
-                updateInterval: {type: 'number', default: 8},
-                smoothness: {type: 'number', default: 0.08},
-                deadzone: {type: 'number', default: 0.002}
+                stabilityThreshold: {type: 'number', default: 0.0005},
+                stabilityFrames: {type: 'number', default: 30},
+                lerpSpeed: {type: 'number', default: 0.15}
             },
             
             init: function() {
-                const mesh = this.el.getObject3D('mesh');
-                if (!mesh || !mesh.geometry) {
-                    console.error('❌ Mesh ou géométrie non trouvée');
-                    return;
-                }
+                this.targetPosition = new THREE.Vector3();
+                this.targetRotation = new THREE.Quaternion();
+                this.lastPosition = new THREE.Vector3();
+                this.lastRotation = new THREE.Quaternion();
                 
-                this.mesh = mesh;
-                this.geometry = mesh.geometry;
+                this.stablePosition = new THREE.Vector3();
+                this.stableRotation = new THREE.Quaternion();
                 
-                // Sauvegarder les positions originales des vertices
-                this.originalPositions = [];
-                const positions = this.geometry.attributes.position.array;
-                for (let i = 0; i < positions.length; i += 3) {
-                    this.originalPositions.push(
-                        new THREE.Vector3(positions[i], positions[i+1], positions[i+2])
-                    );
-                }
+                this.stableCounter = 0;
+                this.isStable = false;
                 
-                // Position lissée des coins avec historique
-                this.smoothCorners = [
-                    new THREE.Vector3(-0.505, 0.505, 0),   // Top-left
-                    new THREE.Vector3(0.505, 0.505, 0),    // Top-right
-                    new THREE.Vector3(0.505, -0.505, 0),   // Bottom-right
-                    new THREE.Vector3(-0.505, -0.505, 0)   // Bottom-left
-                ];
-                
-                // Dernière position acceptée pour dead zone
-                this.lastAcceptedCorners = [
-                    new THREE.Vector3(-0.505, 0.505, 0),
-                    new THREE.Vector3(0.505, 0.505, 0),
-                    new THREE.Vector3(0.505, -0.505, 0),
-                    new THREE.Vector3(-0.505, -0.505, 0)
-                ];
-                
-                this.frameCount = 0;
-                
-                console.log('📍 Corner-pin FLUIDE activé');
-                console.log(`   Update interval: ${this.data.updateInterval} frames`);
-                console.log(`   Smoothness: ${this.data.smoothness}`);
-                console.log(`   Dead zone: ${this.data.deadzone}`);
+                console.log('🎯 Smooth-stable activé');
             },
             
             tick: function() {
-                if (!this.mesh || !this.geometry) return;
+                const object3D = this.el.object3D;
                 
-                this.frameCount++;
+                // Capturer la position actuelle de Mind AR
+                this.targetPosition.copy(object3D.position);
+                this.targetRotation.copy(object3D.quaternion);
                 
-                // Mettre à jour seulement toutes les X frames
-                if (this.frameCount % this.data.updateInterval !== 0) {
-                    return;
-                }
+                // Calculer le mouvement depuis la dernière frame
+                const movementDistance = this.targetPosition.distanceTo(this.lastPosition);
                 
-                const parent = this.el.parentEl;
-                if (!parent) return;
-                
-                const parentObject3D = parent.object3D;
-                const worldMatrix = new THREE.Matrix4();
-                parentObject3D.updateMatrixWorld(true);
-                worldMatrix.copy(parentObject3D.matrixWorld);
-                
-                // Calculer les 4 coins dans l'espace world
-                const halfSize = 0.505;
-                const corners = [
-                    new THREE.Vector3(-halfSize, halfSize, 0),    // Top-left
-                    new THREE.Vector3(halfSize, halfSize, 0),     // Top-right
-                    new THREE.Vector3(halfSize, -halfSize, 0),    // Bottom-right
-                    new THREE.Vector3(-halfSize, -halfSize, 0)    // Bottom-left
-                ];
-                
-                // Appliquer la transformation world aux coins
-                corners.forEach(corner => corner.applyMatrix4(worldMatrix));
-                
-                // DEAD ZONE : Vérifier si le mouvement est significatif
-                let significantMovement = false;
-                for (let i = 0; i < 4; i++) {
-                    const distance = corners[i].distanceTo(this.lastAcceptedCorners[i]);
-                    if (distance > this.data.deadzone) {
-                        significantMovement = true;
-                        break;
+                // Vérifier si stable
+                if (movementDistance < this.data.stabilityThreshold) {
+                    this.stableCounter++;
+                    
+                    // Si stable pendant N frames, figer
+                    if (this.stableCounter >= this.data.stabilityFrames && !this.isStable) {
+                        this.isStable = true;
+                        this.stablePosition.copy(this.targetPosition);
+                        this.stableRotation.copy(this.targetRotation);
+                        console.log('🔒 Position figée (stable)');
                     }
-                }
-                
-                // Si mouvement trop petit, ignorer
-                if (!significantMovement) {
-                    return;
-                }
-                
-                // Sauvegarder comme dernière position acceptée
-                corners.forEach((corner, i) => {
-                    this.lastAcceptedCorners[i].copy(corner);
-                });
-                
-                // Lisser TRÈS doucement vers la nouvelle position
-                corners.forEach((corner, i) => {
-                    this.smoothCorners[i].lerp(corner, this.data.smoothness);
-                });
-                
-                // Inverser la transformation pour avoir en local
-                const invMatrix = new THREE.Matrix4().copy(this.mesh.matrixWorld).invert();
-                const localCorners = this.smoothCorners.map(corner => {
-                    return corner.clone().applyMatrix4(invMatrix);
-                });
-                
-                // Déformer la grille pour correspondre aux coins
-                this.deformGrid(localCorners);
-                
-                this.geometry.attributes.position.needsUpdate = true;
-                this.geometry.computeVertexNormals();
-            },
-            
-            deformGrid: function(corners) {
-                const positions = this.geometry.attributes.position;
-                const segmentsW = this.geometry.parameters.widthSegments;
-                const segmentsH = this.geometry.parameters.heightSegments;
-                
-                for (let i = 0; i <= segmentsH; i++) {
-                    for (let j = 0; j <= segmentsW; j++) {
-                        const index = (i * (segmentsW + 1) + j) * 3;
-                        
-                        // Coordonnées normalisées [0,1]
-                        const u = j / segmentsW;
-                        const v = i / segmentsH;
-                        
-                        // Interpolation bilinéaire des 4 coins
-                        const topLeft = corners[0];
-                        const topRight = corners[1];
-                        const bottomRight = corners[2];
-                        const bottomLeft = corners[3];
-                        
-                        // Interpoler horizontalement
-                        const top = new THREE.Vector3().lerpVectors(topLeft, topRight, u);
-                        const bottom = new THREE.Vector3().lerpVectors(bottomLeft, bottomRight, u);
-                        
-                        // Interpoler verticalement
-                        const position = new THREE.Vector3().lerpVectors(top, bottom, v);
-                        
-                        positions.array[index] = position.x;
-                        positions.array[index + 1] = position.y;
-                        positions.array[index + 2] = position.z;
+                } else {
+                    // Mouvement détecté, désactiver le mode stable
+                    if (this.isStable) {
+                        console.log('🔓 Mouvement détecté');
                     }
+                    this.stableCounter = 0;
+                    this.isStable = false;
                 }
+                
+                // Appliquer la position
+                if (this.isStable) {
+                    // Mode stable : maintenir position figée
+                    object3D.position.copy(this.stablePosition);
+                    object3D.quaternion.copy(this.stableRotation);
+                } else {
+                    // Mode mouvement : interpoler doucement
+                    object3D.position.lerp(this.targetPosition, this.data.lerpSpeed);
+                    object3D.quaternion.slerp(this.targetRotation, this.data.lerpSpeed);
+                }
+                
+                // Sauvegarder pour la prochaine frame
+                this.lastPosition.copy(this.targetPosition);
+                this.lastRotation.copy(this.targetRotation);
             }
         });
         
-        console.log('Wood Wide Web AR - Fluidité maximale');
+        console.log('Wood Wide Web AR - Version stable simple');
         
         const loading = document.getElementById('loading');
         const progressBar = document.getElementById('progress-bar');
