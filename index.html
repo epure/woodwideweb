@@ -77,14 +77,6 @@
         <div id="progress-bar"></div>
     </div>
     
-    <!-- 
-    ══════════════════════════════════════════════════════════
-    CONFIGURATION STABILITÉ MAXIMUM ABSOLUE
-    ══════════════════════════════════════════════════════════
-    filterBeta: 1000        → Lissage Mind AR maximum
-    filterMinCF: 0.00001    → Ultra-conservateur
-    ══════════════════════════════════════════════════════════
-    -->
     <a-scene 
         mindar-image="imageTargetSrc: ./targets.mind; uiScanning: no; filterMinCF: 0.00001; filterBeta: 1000; warmupTolerance: 1; missTolerance: 1"
         color-space="sRGB"
@@ -112,15 +104,14 @@
         
         <!-- 
         ══════════════════════════════════════════════════════════
-        LISSAGE EXTRÊME + SNAP
+        LISSAGE ULTRA-AGRESSIF
         ══════════════════════════════════════════════════════════
-        interval: 10         → Update toutes les 10 frames
-        deadzone: 0.005      → Ignore micro-mouvements
-        smoothing: 40        → Moyenne sur 40 positions
-        snapTime: 100        → Fige 100ms après update
+        interval: 5          → Update toutes les 5 frames
+        deadzone: 0.001      → Ignore les micro-mouvements
+        smoothing: 20        → Moyenne mobile sur 20 positions
         ══════════════════════════════════════════════════════════
         -->
-        <a-entity mindar-image-target="targetIndex: 0" extreme-smooth="interval: 10; deadzone: 0.005; smoothing: 40; snapTime: 100">
+        <a-entity mindar-image-target="targetIndex: 0" ultra-smooth="interval: 5; deadzone: 0.001; smoothing: 20">
             <a-plane
                 material="src: #vid; shader: flat; side: front; transparent: false"
                 position="0 0 0"
@@ -135,66 +126,37 @@
 
     <script>
         // ═══════════════════════════════════════════════════════
-        // COMPOSANT EXTREME-SMOOTH
-        // Stabilité maximum avec position snap
+        // COMPOSANT ULTRA-SMOOTH
+        // Combine : Frame-skip + Dead zone + Moyenne mobile
         // ═══════════════════════════════════════════════════════
-        AFRAME.registerComponent('extreme-smooth', {
+        AFRAME.registerComponent('ultra-smooth', {
             schema: {
-                interval: {type: 'number', default: 10},
-                deadzone: {type: 'number', default: 0.005},
-                smoothing: {type: 'number', default: 40},
-                snapTime: {type: 'number', default: 100}
+                interval: {type: 'number', default: 5},
+                deadzone: {type: 'number', default: 0.001},
+                smoothing: {type: 'number', default: 20}
             },
             
             init: function() {
                 this.frameCount = 0;
                 
-                // Historique pour moyenne mobile
+                // Historique des positions pour moyenne mobile
                 this.positionHistory = [];
                 this.rotationHistory = [];
                 
-                // Position lissée
+                // Position actuelle lissée
                 this.smoothPosition = new THREE.Vector3();
                 this.smoothRotation = new THREE.Quaternion();
-                
-                // Position figée (snap)
-                this.snappedPosition = new THREE.Vector3();
-                this.snappedRotation = new THREE.Quaternion();
                 
                 // Dernière position acceptée
                 this.lastAcceptedPosition = new THREE.Vector3();
                 this.lastAcceptedRotation = new THREE.Quaternion();
                 
-                // Timer pour le snap
-                this.snapTimer = 0;
-                this.isSnapped = false;
-                
-                console.log(`🔒 EXTREME-SMOOTH activé`);
-                console.log(`   interval: ${this.data.interval} frames`);
-                console.log(`   deadzone: ${this.data.deadzone}`);
-                console.log(`   smoothing: ${this.data.smoothing} positions`);
-                console.log(`   snapTime: ${this.data.snapTime}ms`);
+                console.log(`🎯 Ultra-smooth: interval=${this.data.interval}, deadzone=${this.data.deadzone}, smoothing=${this.data.smoothing}`);
             },
             
-            tick: function(time, deltaTime) {
+            tick: function() {
                 const el = this.el;
                 const object3D = el.object3D;
-                
-                // Gérer le snap timer
-                if (this.isSnapped) {
-                    this.snapTimer += deltaTime;
-                    
-                    if (this.snapTimer >= this.data.snapTime) {
-                        // Fin du snap
-                        this.isSnapped = false;
-                        this.snapTimer = 0;
-                    } else {
-                        // Maintenir la position figée
-                        object3D.position.copy(this.snappedPosition);
-                        object3D.quaternion.copy(this.snappedRotation);
-                        return;
-                    }
-                }
                 
                 this.frameCount++;
                 
@@ -206,12 +168,10 @@
                     const currentRot = object3D.quaternion.clone();
                     
                     // DEAD ZONE : Ignorer les micro-mouvements
-                    if (this.lastAcceptedPosition.length() > 0) {
-                        const distance = currentPos.distanceTo(this.lastAcceptedPosition);
-                        if (distance < this.data.deadzone) {
-                            // Mouvement trop petit, on ignore
-                            return;
-                        }
+                    const distance = currentPos.distanceTo(this.lastAcceptedPosition);
+                    if (distance < this.data.deadzone && this.lastAcceptedPosition.length() > 0) {
+                        // Mouvement trop petit, on ignore
+                        return;
                     }
                     
                     // Ajouter à l'historique
@@ -239,30 +199,20 @@
                         }
                     }
                     
-                    // Sauvegarder
+                    // Sauvegarder comme dernière position acceptée
                     this.lastAcceptedPosition.copy(currentPos);
                     this.lastAcceptedRotation.copy(currentRot);
-                    
-                    // SNAP : Figer la nouvelle position
-                    this.snappedPosition.copy(this.smoothPosition);
-                    this.snappedRotation.copy(this.smoothRotation);
-                    this.isSnapped = true;
-                    this.snapTimer = 0;
-                    
-                    // Appliquer immédiatement
-                    object3D.position.copy(this.snappedPosition);
-                    object3D.quaternion.copy(this.snappedRotation);
-                } else {
-                    // Entre les updates : interpolation très douce
-                    if (this.positionHistory.length > 0) {
-                        object3D.position.lerp(this.smoothPosition, 0.1);
-                        object3D.quaternion.slerp(this.smoothRotation, 0.1);
-                    }
+                }
+                
+                // Appliquer la position lissée avec interpolation douce
+                if (this.positionHistory.length > 0) {
+                    object3D.position.lerp(this.smoothPosition, 0.2);
+                    object3D.quaternion.slerp(this.smoothRotation, 0.2);
                 }
             }
         });
         
-        console.log('Wood Wide Web AR - VERSION 3 - Stabilité extrême');
+        console.log('Wood Wide Web AR - Ultra-smooth V1');
         
         const loading = document.getElementById('loading');
         const progressBar = document.getElementById('progress-bar');
@@ -340,48 +290,3 @@
     </script>
 </body>
 </html>
-```
-
----
-
-## ✅ VERSION 3 - CARACTÉRISTIQUES
-
-### **Paramètres extrêmes :**
-
-| Paramètre | Valeur | Effet |
-|-----------|--------|-------|
-| **interval** | 10 frames | Update tous les ~167ms (au lieu de 16ms) |
-| **deadzone** | 0.005 | Ignore 5x plus de micro-mouvements |
-| **smoothing** | 40 positions | Moyenne sur 40 positions (au lieu de 20) |
-| **snapTime** | 100ms | Fige la position pendant 100ms après update |
-| **lerp** | 0.1 | Interpolation très lente (0.1 au lieu de 0.2) |
-
----
-
-## 🎯 LOGIQUE "SNAP"
-```
-Frame 1-9:  Position figée (SNAP)
-Frame 10:   Nouvelle position calculée → SNAP
-Frame 11-19: Position figée (SNAP)
-Frame 20:   Nouvelle position calculée → SNAP
-```
-
-**Effet :** La vidéo "saute" de position stable en position stable, sans trembler entre les deux.
-
----
-
-## 📊 QUADRUPLE FILTRAGE
-```
-Position brute Mind AR (60 fps)
-    ↓
-1. filterBeta: 1000 (lissage Mind AR)
-    ↓
-2. Dead Zone: 0.005 (ignore micro-mouvements)
-    ↓
-3. Moyenne mobile: 40 positions
-    ↓
-4. Frame-skip: Toutes les 10 frames
-    ↓
-5. SNAP: Fige 100ms
-    ↓
-Position finale ultra-stable (6 fps)
