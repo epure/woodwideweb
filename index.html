@@ -102,36 +102,24 @@
             wasd-controls="enabled: false">
         </a-camera>
         
-        <!-- 
-        ══════════════════════════════════════════════════════════
-        SOLUTION : QUANTIZATION + SEGMENTS POUR PERSPECTIVE
-        ══════════════════════════════════════════════════════════
-        quantize-stable: Arrondit les positions pour éliminer variations
-        segments: 20x20 pour meilleure adaptation perspective
-        ══════════════════════════════════════════════════════════
-        -->
-        <a-entity mindar-image-target="targetIndex: 0" quantize-stable="threshold: 0.002; freezeFrames: 10; quantum: 0.001">
+        <a-entity mindar-image-target="targetIndex: 0" smooth-stable="stabilityThreshold: 0.003; stabilityFrames: 12; lerpSpeed: 0.12">
             <a-plane
                 material="src: #vid; shader: flat; side: front; transparent: false"
                 position="0 0 0"
                 rotation="0 0 0"
                 width="1.01"
                 height="1.01"
-                geometry="primitive: plane; segmentsWidth: 20; segmentsHeight: 20">
+                geometry="primitive: plane">
             </a-plane>
         </a-entity>
     </a-scene>
 
     <script>
-        // ═══════════════════════════════════════════════════════
-        // QUANTIZE-STABLE : Arrondit les positions
-        // Élimine les micro-variations en "quantifiant" les positions
-        // ═══════════════════════════════════════════════════════
-        AFRAME.registerComponent('quantize-stable', {
+        AFRAME.registerComponent('smooth-stable', {
             schema: {
-                threshold: {type: 'number', default: 0.002},
-                freezeFrames: {type: 'number', default: 10},
-                quantum: {type: 'number', default: 0.001}  // Précision d'arrondi
+                stabilityThreshold: {type: 'number', default: 0.003},
+                stabilityFrames: {type: 'number', default: 12},
+                lerpSpeed: {type: 'number', default: 0.12}
             },
             
             init: function() {
@@ -139,73 +127,47 @@
                 this.targetRotation = new THREE.Quaternion();
                 this.lastPosition = new THREE.Vector3();
                 
-                this.frozenPosition = new THREE.Vector3();
-                this.frozenRotation = new THREE.Quaternion();
+                this.stablePosition = new THREE.Vector3();
+                this.stableRotation = new THREE.Quaternion();
                 
                 this.stableCounter = 0;
-                this.isFrozen = false;
-                
-                console.log('🔢 QUANTIZE-STABLE activé');
-                console.log(`   Seuil: ${this.data.threshold}`);
-                console.log(`   Frames: ${this.data.freezeFrames}`);
-                console.log(`   Quantum: ${this.data.quantum}`);
-            },
-            
-            // Fonction de quantization : arrondit à la grille
-            quantize: function(value, quantum) {
-                return Math.round(value / quantum) * quantum;
+                this.isStable = false;
             },
             
             tick: function() {
                 const object3D = this.el.object3D;
                 
-                // Capturer et QUANTIFIER la position Mind AR
-                const rawPos = object3D.position.clone();
-                this.targetPosition.set(
-                    this.quantize(rawPos.x, this.data.quantum),
-                    this.quantize(rawPos.y, this.data.quantum),
-                    this.quantize(rawPos.z, this.data.quantum)
-                );
+                this.targetPosition.copy(object3D.position);
+                this.targetRotation.copy(object3D.quaternion);
                 
-                const rawRot = object3D.quaternion.clone();
-                this.targetRotation.copy(rawRot);
+                const movementDistance = this.targetPosition.distanceTo(this.lastPosition);
                 
-                // Si figé, maintenir position figée
-                if (this.isFrozen) {
-                    object3D.position.copy(this.frozenPosition);
-                    object3D.quaternion.copy(this.frozenRotation);
-                    return;
-                }
-                
-                // Calculer mouvement
-                const movement = this.targetPosition.distanceTo(this.lastPosition);
-                
-                // Vérifier stabilité
-                if (movement < this.data.threshold) {
+                if (movementDistance < this.data.stabilityThreshold) {
                     this.stableCounter++;
                     
-                    if (this.stableCounter >= this.data.freezeFrames) {
-                        // FIGER
-                        this.isFrozen = true;
-                        this.frozenPosition.copy(this.targetPosition);
-                        this.frozenRotation.copy(this.targetRotation);
-                        console.log('🔒 Position FIGÉE (quantized)');
+                    if (this.stableCounter >= this.data.stabilityFrames && !this.isStable) {
+                        this.isStable = true;
+                        this.stablePosition.copy(this.targetPosition);
+                        this.stableRotation.copy(this.targetRotation);
                     }
                 } else {
                     this.stableCounter = 0;
-                    this.isFrozen = false;
+                    this.isStable = false;
                 }
                 
-                // Appliquer position quantifiée (pas d'interpolation = plus stable)
-                object3D.position.copy(this.targetPosition);
-                object3D.quaternion.copy(this.targetRotation);
+                if (this.isStable) {
+                    object3D.position.copy(this.stablePosition);
+                    object3D.quaternion.copy(this.stableRotation);
+                } else {
+                    object3D.position.lerp(this.targetPosition, this.data.lerpSpeed);
+                    object3D.quaternion.slerp(this.targetRotation, this.data.lerpSpeed);
+                }
                 
-                // Sauvegarder
                 this.lastPosition.copy(this.targetPosition);
             }
         });
         
-        console.log('Wood Wide Web AR - Quantization + Perspective');
+        console.log('Wood Wide Web AR - Version finale');
         
         const loading = document.getElementById('loading');
         const progressBar = document.getElementById('progress-bar');
