@@ -104,102 +104,108 @@
         
         <!-- 
         ══════════════════════════════════════════════════════════
-        GEL ABSOLU - IGNORE MIND AR UNE FOIS FIGÉ
+        SOLUTION : QUANTIZATION + SEGMENTS POUR PERSPECTIVE
         ══════════════════════════════════════════════════════════
-        Une fois figée, la vidéo N'ÉCOUTE PLUS Mind AR
+        quantize-stable: Arrondit les positions pour éliminer variations
+        segments: 20x20 pour meilleure adaptation perspective
         ══════════════════════════════════════════════════════════
         -->
-        <a-entity mindar-image-target="targetIndex: 0" freeze-position="threshold: 0.002; freezeFrames: 15">
+        <a-entity mindar-image-target="targetIndex: 0" quantize-stable="threshold: 0.002; freezeFrames: 10; quantum: 0.001">
             <a-plane
                 material="src: #vid; shader: flat; side: front; transparent: false"
                 position="0 0 0"
                 rotation="0 0 0"
                 width="1.01"
                 height="1.01"
-                geometry="primitive: plane">
+                geometry="primitive: plane; segmentsWidth: 20; segmentsHeight: 20">
             </a-plane>
         </a-entity>
     </a-scene>
 
     <script>
         // ═══════════════════════════════════════════════════════
-        // FREEZE-POSITION : GEL ABSOLU
-        // Une fois figé, IGNORE COMPLÈTEMENT Mind AR
+        // QUANTIZE-STABLE : Arrondit les positions
+        // Élimine les micro-variations en "quantifiant" les positions
         // ═══════════════════════════════════════════════════════
-        AFRAME.registerComponent('freeze-position', {
+        AFRAME.registerComponent('quantize-stable', {
             schema: {
                 threshold: {type: 'number', default: 0.002},
-                freezeFrames: {type: 'number', default: 15}
+                freezeFrames: {type: 'number', default: 10},
+                quantum: {type: 'number', default: 0.001}  // Précision d'arrondi
             },
             
             init: function() {
-                // Position de Mind AR (parent)
-                this.parentPosition = new THREE.Vector3();
-                this.parentRotation = new THREE.Quaternion();
-                this.lastParentPosition = new THREE.Vector3();
+                this.targetPosition = new THREE.Vector3();
+                this.targetRotation = new THREE.Quaternion();
+                this.lastPosition = new THREE.Vector3();
                 
-                // Position figée de la vidéo
                 this.frozenPosition = new THREE.Vector3();
                 this.frozenRotation = new THREE.Quaternion();
                 
-                // État
-                this.isFrozen = false;
                 this.stableCounter = 0;
+                this.isFrozen = false;
                 
-                console.log('❄️ FREEZE-POSITION activé');
+                console.log('🔢 QUANTIZE-STABLE activé');
                 console.log(`   Seuil: ${this.data.threshold}`);
                 console.log(`   Frames: ${this.data.freezeFrames}`);
+                console.log(`   Quantum: ${this.data.quantum}`);
+            },
+            
+            // Fonction de quantization : arrondit à la grille
+            quantize: function(value, quantum) {
+                return Math.round(value / quantum) * quantum;
             },
             
             tick: function() {
-                const plane = this.el.querySelector('a-plane');
-                if (!plane) return;
+                const object3D = this.el.object3D;
                 
-                const planeObject3D = plane.object3D;
-                const parentObject3D = this.el.object3D;
+                // Capturer et QUANTIFIER la position Mind AR
+                const rawPos = object3D.position.clone();
+                this.targetPosition.set(
+                    this.quantize(rawPos.x, this.data.quantum),
+                    this.quantize(rawPos.y, this.data.quantum),
+                    this.quantize(rawPos.z, this.data.quantum)
+                );
                 
-                // Si déjà figé, maintenir la position et IGNORER Mind AR
+                const rawRot = object3D.quaternion.clone();
+                this.targetRotation.copy(rawRot);
+                
+                // Si figé, maintenir position figée
                 if (this.isFrozen) {
-                    planeObject3D.position.copy(this.frozenPosition);
-                    planeObject3D.quaternion.copy(this.frozenRotation);
-                    return; // NE PAS LIRE Mind AR
+                    object3D.position.copy(this.frozenPosition);
+                    object3D.quaternion.copy(this.frozenRotation);
+                    return;
                 }
                 
-                // Lire la position de Mind AR (parent)
-                this.parentPosition.setFromMatrixPosition(parentObject3D.matrixWorld);
-                this.parentRotation.setFromRotationMatrix(parentObject3D.matrixWorld);
-                
-                // Calculer le mouvement
-                const movement = this.parentPosition.distanceTo(this.lastParentPosition);
+                // Calculer mouvement
+                const movement = this.targetPosition.distanceTo(this.lastPosition);
                 
                 // Vérifier stabilité
                 if (movement < this.data.threshold) {
                     this.stableCounter++;
                     
                     if (this.stableCounter >= this.data.freezeFrames) {
-                        // FIGER LA POSITION
+                        // FIGER
                         this.isFrozen = true;
-                        this.frozenPosition.copy(planeObject3D.position);
-                        this.frozenRotation.copy(planeObject3D.quaternion);
-                        console.log('❄️ POSITION FIGÉE - Mind AR ignoré');
+                        this.frozenPosition.copy(this.targetPosition);
+                        this.frozenRotation.copy(this.targetRotation);
+                        console.log('🔒 Position FIGÉE (quantized)');
                     }
                 } else {
                     this.stableCounter = 0;
+                    this.isFrozen = false;
                 }
                 
-                // Appliquer position de Mind AR avec interpolation douce
-                const targetPos = new THREE.Vector3(0, 0, 0);
-                const targetRot = new THREE.Quaternion();
-                
-                planeObject3D.position.lerp(targetPos, 0.1);
-                planeObject3D.quaternion.slerp(targetRot, 0.1);
+                // Appliquer position quantifiée (pas d'interpolation = plus stable)
+                object3D.position.copy(this.targetPosition);
+                object3D.quaternion.copy(this.targetRotation);
                 
                 // Sauvegarder
-                this.lastParentPosition.copy(this.parentPosition);
+                this.lastPosition.copy(this.targetPosition);
             }
         });
         
-        console.log('Wood Wide Web AR - Gel absolu');
+        console.log('Wood Wide Web AR - Quantization + Perspective');
         
         const loading = document.getElementById('loading');
         const progressBar = document.getElementById('progress-bar');
