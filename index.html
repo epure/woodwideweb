@@ -78,7 +78,7 @@
     </div>
     
     <a-scene 
-        mindar-image="imageTargetSrc: ./targets.mind; uiScanning: no; filterMinCF: 0.001; filterBeta: 100; warmupTolerance: 5; missTolerance: 5"
+        mindar-image="imageTargetSrc: ./targets.mind; uiScanning: no; filterMinCF: 0.001; filterBeta: 50; warmupTolerance: 5; missTolerance: 5"
         color-space="sRGB"
         renderer="colorManagement: true; antialias: true"
         vr-mode-ui="enabled: false"
@@ -102,72 +102,151 @@
             wasd-controls="enabled: false">
         </a-camera>
         
-        <a-entity mindar-image-target="targetIndex: 0" smooth-stable="stabilityThreshold: 0.003; stabilityFrames: 12; lerpSpeed: 0.12">
+        <!-- 
+        ══════════════════════════════════════════════════════════
+        NOUVELLE APPROCHE : ANCRAGE PAR 4 COINS
+        ══════════════════════════════════════════════════════════
+        Mind AR détecte → On extrait les 4 coins → On ancre dessus
+        ══════════════════════════════════════════════════════════
+        -->
+        <a-entity mindar-image-target="targetIndex: 0">
             <a-plane
+                id="video-plane"
                 material="src: #vid; shader: flat; side: front; transparent: false"
                 position="0 0 0"
                 rotation="0 0 0"
                 width="1.01"
                 height="1.01"
-                geometry="primitive: plane">
+                geometry="primitive: plane; segmentsWidth: 1; segmentsHeight: 1"
+                corner-anchor>
             </a-plane>
         </a-entity>
     </a-scene>
 
     <script>
-        AFRAME.registerComponent('smooth-stable', {
-            schema: {
-                stabilityThreshold: {type: 'number', default: 0.003},
-                stabilityFrames: {type: 'number', default: 12},
-                lerpSpeed: {type: 'number', default: 0.12}
-            },
-            
+        // ═══════════════════════════════════════════════════════
+        // CORNER-ANCHOR : Ancrage par les 4 coins uniquement
+        // Extrait les 4 coins de Mind AR et les fige
+        // ═══════════════════════════════════════════════════════
+        AFRAME.registerComponent('corner-anchor', {
             init: function() {
-                this.targetPosition = new THREE.Vector3();
-                this.targetRotation = new THREE.Quaternion();
-                this.lastPosition = new THREE.Vector3();
+                this.corners = [
+                    new THREE.Vector3(-0.505, 0.505, 0),   // Top-left
+                    new THREE.Vector3(0.505, 0.505, 0),    // Top-right
+                    new THREE.Vector3(0.505, -0.505, 0),   // Bottom-right
+                    new THREE.Vector3(-0.505, -0.505, 0)   // Bottom-left
+                ];
                 
-                this.stablePosition = new THREE.Vector3();
-                this.stableRotation = new THREE.Quaternion();
+                this.worldCorners = [
+                    new THREE.Vector3(),
+                    new THREE.Vector3(),
+                    new THREE.Vector3(),
+                    new THREE.Vector3()
+                ];
                 
-                this.stableCounter = 0;
-                this.isStable = false;
+                this.frozenCorners = null;
+                this.stableFrames = 0;
+                this.isFrozen = false;
+                
+                console.log('📍 CORNER-ANCHOR activé');
             },
             
             tick: function() {
-                const object3D = this.el.object3D;
+                const plane = this.el;
+                const target = this.el.parentEl;
                 
-                this.targetPosition.copy(object3D.position);
-                this.targetRotation.copy(object3D.quaternion);
+                if (!target) return;
                 
-                const movementDistance = this.targetPosition.distanceTo(this.lastPosition);
+                // Si déjà figé, maintenir position figée
+                if (this.isFrozen && this.frozenCorners) {
+                    this.applyCorners(this.frozenCorners);
+                    return;
+                }
                 
-                if (movementDistance < this.data.stabilityThreshold) {
-                    this.stableCounter++;
-                    
-                    if (this.stableCounter >= this.data.stabilityFrames && !this.isStable) {
-                        this.isStable = true;
-                        this.stablePosition.copy(this.targetPosition);
-                        this.stableRotation.copy(this.targetRotation);
+                // Obtenir la matrice world du target Mind AR
+                target.object3D.updateMatrixWorld(true);
+                const worldMatrix = target.object3D.matrixWorld;
+                
+                // Calculer position world des 4 coins
+                for (let i = 0; i < 4; i++) {
+                    this.worldCorners[i].copy(this.corners[i]);
+                    this.worldCorners[i].applyMatrix4(worldMatrix);
+                }
+                
+                // Vérifier stabilité des coins
+                if (this.lastWorldCorners) {
+                    let maxMovement = 0;
+                    for (let i = 0; i < 4; i++) {
+                        const dist = this.worldCorners[i].distanceTo(this.lastWorldCorners[i]);
+                        maxMovement = Math.max(maxMovement, dist);
                     }
-                } else {
-                    this.stableCounter = 0;
-                    this.isStable = false;
+                    
+                    // Si tous les coins bougent < 0.002
+                    if (maxMovement < 0.002) {
+                        this.stableFrames++;
+                        
+                        if (this.stableFrames > 15) {
+                            // FIGER les coins
+                            this.isFrozen = true;
+                            this.frozenCorners = this.worldCorners.map(c => c.clone());
+                            console.log('📍 COINS FIGÉS');
+                        }
+                    } else {
+                        this.stableFrames = 0;
+                    }
                 }
                 
-                if (this.isStable) {
-                    object3D.position.copy(this.stablePosition);
-                    object3D.quaternion.copy(this.stableRotation);
-                } else {
-                    object3D.position.lerp(this.targetPosition, this.data.lerpSpeed);
-                    object3D.quaternion.slerp(this.targetRotation, this.data.lerpSpeed);
-                }
+                // Sauvegarder pour comparaison
+                this.lastWorldCorners = this.worldCorners.map(c => c.clone());
                 
-                this.lastPosition.copy(this.targetPosition);
+                // Appliquer position des coins
+                this.applyCorners(this.worldCorners);
+            },
+            
+            applyCorners: function(corners) {
+                const plane = this.el;
+                
+                // Calculer le centre des 4 coins
+                const center = new THREE.Vector3();
+                corners.forEach(c => center.add(c));
+                center.divideScalar(4);
+                
+                // Positionner le plane au centre
+                plane.object3D.position.copy(center);
+                
+                // Calculer orientation depuis les coins
+                // Vecteur horizontal (left → right)
+                const horizontal = new THREE.Vector3().subVectors(corners[1], corners[0]);
+                // Vecteur vertical (top → bottom)
+                const vertical = new THREE.Vector3().subVectors(corners[3], corners[0]);
+                
+                // Normal (perpendiculaire)
+                const normal = new THREE.Vector3().crossVectors(horizontal, vertical).normalize();
+                
+                // Créer matrice de rotation
+                const up = vertical.normalize();
+                const right = horizontal.normalize();
+                
+                const rotMatrix = new THREE.Matrix4();
+                rotMatrix.makeBasis(right, up, normal);
+                
+                // Appliquer rotation
+                const rotation = new THREE.Quaternion().setFromRotationMatrix(rotMatrix);
+                plane.object3D.quaternion.copy(rotation);
+                
+                // Calculer scale depuis distance entre coins
+                const width = corners[0].distanceTo(corners[1]);
+                const height = corners[0].distanceTo(corners[3]);
+                
+                plane.object3D.scale.set(
+                    width / 1.01,
+                    height / 1.01,
+                    1
+                );
             }
         });
         
-        console.log('Wood Wide Web AR - Version finale');
+        console.log('Wood Wide Web AR - Corner Anchor');
         
         const loading = document.getElementById('loading');
         const progressBar = document.getElementById('progress-bar');
@@ -221,6 +300,13 @@
                     hasPlayedSound = true;
                 }
                 
+                // Réinitialiser le freeze
+                const plane = document.querySelector('#video-plane');
+                if (plane && plane.components['corner-anchor']) {
+                    plane.components['corner-anchor'].isFrozen = false;
+                    plane.components['corner-anchor'].stableFrames = 0;
+                }
+                
                 video.play().catch(() => {
                     document.body.addEventListener('click', () => {
                         video.play();
@@ -245,3 +331,22 @@
     </script>
 </body>
 </html>
+```
+
+---
+
+## ✅ NOUVELLE APPROCHE RÉVOLUTIONNAIRE
+
+### **Logique :**
+```
+Mind AR détecte image
+    ↓
+Extrait matrice de transformation
+    ↓
+Calcule position 3D des 4 coins de l'image
+    ↓
+Positionne la vidéo pour correspondre à ces 4 coins
+    ↓
+Dès que les 4 coins sont stables → FIGE
+    ↓
+Vidéo ancrée sur les 4 coins figés
