@@ -77,13 +77,8 @@
         <div id="progress-bar"></div>
     </div>
     
-    <!-- 
-    ══════════════════════════════════════════════════════════
-    TEST 1 : filterBeta MAXIMUM
-    ══════════════════════════════════════════════════════════
-    -->
     <a-scene 
-        mindar-image="imageTargetSrc: ./targets.mind; uiScanning: no; filterMinCF: 0.001; filterBeta: 1000; warmupTolerance: 5; missTolerance: 5"
+        mindar-image="imageTargetSrc: ./targets.mind; uiScanning: no; filterMinCF: 0.001; filterBeta: 100; warmupTolerance: 5; missTolerance: 5"
         color-space="sRGB"
         renderer="colorManagement: true; antialias: true"
         vr-mode-ui="enabled: false"
@@ -109,14 +104,12 @@
         
         <!-- 
         ══════════════════════════════════════════════════════════
-        TEST 1 : DÉSACTIVER LE LERP
+        GEL ABSOLU - IGNORE MIND AR UNE FOIS FIGÉ
         ══════════════════════════════════════════════════════════
-        stabilityThreshold: 1      → Maximum
-        stabilityFrames: 5         → Fige TRÈS vite
-        lerpSpeed: 0               → LERP DÉSACTIVÉ (pas d'interpolation)
+        Une fois figée, la vidéo N'ÉCOUTE PLUS Mind AR
         ══════════════════════════════════════════════════════════
         -->
-        <a-entity mindar-image-target="targetIndex: 0" smooth-stable="stabilityThreshold: 1; stabilityFrames: 5; lerpSpeed: 0">
+        <a-entity mindar-image-target="targetIndex: 0" freeze-position="threshold: 0.002; freezeFrames: 15">
             <a-plane
                 material="src: #vid; shader: flat; side: front; transparent: false"
                 position="0 0 0"
@@ -129,85 +122,84 @@
     </a-scene>
 
     <script>
-        AFRAME.registerComponent('smooth-stable', {
+        // ═══════════════════════════════════════════════════════
+        // FREEZE-POSITION : GEL ABSOLU
+        // Une fois figé, IGNORE COMPLÈTEMENT Mind AR
+        // ═══════════════════════════════════════════════════════
+        AFRAME.registerComponent('freeze-position', {
             schema: {
-                stabilityThreshold: {type: 'number', default: 1},
-                stabilityFrames: {type: 'number', default: 5},
-                lerpSpeed: {type: 'number', default: 0}
+                threshold: {type: 'number', default: 0.002},
+                freezeFrames: {type: 'number', default: 15}
             },
             
             init: function() {
-                this.targetPosition = new THREE.Vector3();
-                this.targetRotation = new THREE.Quaternion();
-                this.lastPosition = new THREE.Vector3();
-                this.lastRotation = new THREE.Quaternion();
+                // Position de Mind AR (parent)
+                this.parentPosition = new THREE.Vector3();
+                this.parentRotation = new THREE.Quaternion();
+                this.lastParentPosition = new THREE.Vector3();
                 
-                this.stablePosition = new THREE.Vector3();
-                this.stableRotation = new THREE.Quaternion();
+                // Position figée de la vidéo
+                this.frozenPosition = new THREE.Vector3();
+                this.frozenRotation = new THREE.Quaternion();
                 
+                // État
+                this.isFrozen = false;
                 this.stableCounter = 0;
-                this.isStable = false;
                 
-                console.log('🧪 TEST 1 : LERP DÉSACTIVÉ');
-                console.log(`   Seuil: ${this.data.stabilityThreshold}`);
-                console.log(`   Frames: ${this.data.stabilityFrames}`);
-                console.log(`   Lerp: ${this.data.lerpSpeed} (DÉSACTIVÉ)`);
+                console.log('❄️ FREEZE-POSITION activé');
+                console.log(`   Seuil: ${this.data.threshold}`);
+                console.log(`   Frames: ${this.data.freezeFrames}`);
             },
             
             tick: function() {
-                const object3D = this.el.object3D;
+                const plane = this.el.querySelector('a-plane');
+                if (!plane) return;
                 
-                // Capturer la position actuelle de Mind AR
-                this.targetPosition.copy(object3D.position);
-                this.targetRotation.copy(object3D.quaternion);
+                const planeObject3D = plane.object3D;
+                const parentObject3D = this.el.object3D;
                 
-                // Calculer le mouvement depuis la dernière frame
-                const movementDistance = this.targetPosition.distanceTo(this.lastPosition);
+                // Si déjà figé, maintenir la position et IGNORER Mind AR
+                if (this.isFrozen) {
+                    planeObject3D.position.copy(this.frozenPosition);
+                    planeObject3D.quaternion.copy(this.frozenRotation);
+                    return; // NE PAS LIRE Mind AR
+                }
                 
-                // Vérifier si stable
-                if (movementDistance < this.data.stabilityThreshold) {
+                // Lire la position de Mind AR (parent)
+                this.parentPosition.setFromMatrixPosition(parentObject3D.matrixWorld);
+                this.parentRotation.setFromRotationMatrix(parentObject3D.matrixWorld);
+                
+                // Calculer le mouvement
+                const movement = this.parentPosition.distanceTo(this.lastParentPosition);
+                
+                // Vérifier stabilité
+                if (movement < this.data.threshold) {
                     this.stableCounter++;
                     
-                    // Si stable pendant N frames, figer
-                    if (this.stableCounter >= this.data.stabilityFrames && !this.isStable) {
-                        this.isStable = true;
-                        this.stablePosition.copy(this.targetPosition);
-                        this.stableRotation.copy(this.targetRotation);
-                        console.log('🔒 TEST 1 : Position figée (lerp désactivé)');
+                    if (this.stableCounter >= this.data.freezeFrames) {
+                        // FIGER LA POSITION
+                        this.isFrozen = true;
+                        this.frozenPosition.copy(planeObject3D.position);
+                        this.frozenRotation.copy(planeObject3D.quaternion);
+                        console.log('❄️ POSITION FIGÉE - Mind AR ignoré');
                     }
                 } else {
-                    // Mouvement détecté
-                    if (this.isStable) {
-                        console.log('🔓 TEST 1 : Mouvement détecté');
-                    }
                     this.stableCounter = 0;
-                    this.isStable = false;
                 }
                 
-                // Appliquer la position
-                if (this.isStable) {
-                    // Mode stable : maintenir position figée
-                    object3D.position.copy(this.stablePosition);
-                    object3D.quaternion.copy(this.stableRotation);
-                } else {
-                    // Mode mouvement : PAS D'INTERPOLATION
-                    // Copie directe (pas de lerp)
-                    if (this.data.lerpSpeed === 0) {
-                        object3D.position.copy(this.targetPosition);
-                        object3D.quaternion.copy(this.targetRotation);
-                    } else {
-                        object3D.position.lerp(this.targetPosition, this.data.lerpSpeed);
-                        object3D.quaternion.slerp(this.targetRotation, this.data.lerpSpeed);
-                    }
-                }
+                // Appliquer position de Mind AR avec interpolation douce
+                const targetPos = new THREE.Vector3(0, 0, 0);
+                const targetRot = new THREE.Quaternion();
                 
-                // Sauvegarder pour la prochaine frame
-                this.lastPosition.copy(this.targetPosition);
-                this.lastRotation.copy(this.targetRotation);
+                planeObject3D.position.lerp(targetPos, 0.1);
+                planeObject3D.quaternion.slerp(targetRot, 0.1);
+                
+                // Sauvegarder
+                this.lastParentPosition.copy(this.parentPosition);
             }
         });
         
-        console.log('🧪 TEST 1 - Lerp désactivé + filterBeta 1000');
+        console.log('Wood Wide Web AR - Gel absolu');
         
         const loading = document.getElementById('loading');
         const progressBar = document.getElementById('progress-bar');
