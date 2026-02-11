@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Wood Wide Web</title>
+    
+    <!-- IBM Plex Mono Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- MindAR & A-Frame -->
+    <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+            font-family: 'IBM Plex Mono', monospace;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        /* Force A-Frame scene to take full screen */
+        a-scene {
+            width: 100vw !important;
+            height: 100vh !important;
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+        }
+        
+        /* Force canvas to take full screen */
+        .a-canvas,
+        canvas {
+            width: 100vw !important;
+            height: 100vh !important;
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+        }
+        
+        /* Écran de chargement */
+        #loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            color: #fff;
+        }
+        
+        #loading-screen.hidden {
+            display: none;
+        }
+        
+        .loading-title {
+            font-size: 24px;
+            font-weight: 500;
+            letter-spacing: 2px;
+            margin-bottom: 40px;
+            text-transform: uppercase;
+        }
+        
+        .loading-text {
+            font-size: 14px;
+            font-weight: 400;
+            letter-spacing: 1px;
+            opacity: 0.7;
+        }
+        
+        /* Viseur de détection - 4 angles uniquement */
+        #viewfinder {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60vw;
+            height: 60vw;
+            max-width: 300px;
+            max-height: 300px;
+            pointer-events: none;
+            z-index: 1000;
+        }
+        
+        #viewfinder.hidden {
+            display: none;
+        }
+        
+        .corner {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border: 2px solid rgba(255, 255, 255, 0.6);
+        }
+        
+        .corner.top-left {
+            top: 0;
+            left: 0;
+            border-right: none;
+            border-bottom: none;
+        }
+        
+        .corner.top-right {
+            top: 0;
+            right: 0;
+            border-left: none;
+            border-bottom: none;
+        }
+        
+        .corner.bottom-left {
+            bottom: 0;
+            left: 0;
+            border-right: none;
+            border-top: none;
+        }
+        
+        .corner.bottom-right {
+            bottom: 0;
+            right: 0;
+            border-left: none;
+            border-top: none;
+        }
+        
+        /* Barre de progression */
+        #progress-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 10px;
+            background: transparent;
+            z-index: 1001;
+            display: none;
+        }
+        
+        #progress-bar.active {
+            display: block;
+        }
+        
+        #progress-fill {
+            height: 100%;
+            width: 0%;
+            background: #fff;
+            transition: width 0.1s linear;
+        }
+        
+        /* Cacher uniquement les boutons/overlays UI de A-Frame */
+        .a-enter-vr-button,
+        .a-enter-ar-button,
+        .a-orientation-modal,
+        .a-dialog-container,
+        .a-loader-title,
+        .a-dialog,
+        [data-aframe-default-ui] {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+        }
+        
+        /* Cacher la barre blanche horizontale de scan/tracking */
+        .mindar-ui-scanning,
+        .mindar-ui-scanning-line,
+        .scanning-overlay,
+        [class*="scanning"],
+        [class*="ui-overlay"],
+        .mindar-ui-overlay,
+        .mindar-ui-loading,
+        .mindar-ui-compatibility,
+        [class*="mindar-ui"] {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+        }
+        
+        /* Debug overlay pour mobile */
+        #debug-overlay {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            max-height: 200px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #0f0;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10px;
+            padding: 10px;
+            z-index: 10000;
+            overflow-y: auto;
+            border: 1px solid #0f0;
+            display: none;
+        }
+        
+        #debug-overlay.active {
+            display: block;
+        }
+        
+        #debug-overlay .log-line {
+            margin: 2px 0;
+            word-break: break-all;
+        }
+        
+        #debug-toggle {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            width: 40px;
+            height: 40px;
+            background: rgba(0, 255, 0, 0.3);
+            border: 2px solid #0f0;
+            border-radius: 50%;
+            z-index: 10001;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: #0f0;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <!-- Debug toggle button -->
+    <div id="debug-toggle">?</div>
+    
+    <!-- Debug overlay -->
+    <div id="debug-overlay"></div>
+
+    <!-- Écran de chargement -->
+    <div id="loading-screen">
+        <div class="loading-title">Wood Wide Web</div>
+        <div class="loading-text">Initialisation...</div>
+    </div>
+
+    <!-- Viseur de détection -->
+    <div id="viewfinder">
+        <div class="corner top-left"></div>
+        <div class="corner top-right"></div>
+        <div class="corner bottom-left"></div>
+        <div class="corner bottom-right"></div>
+    </div>
+
+    <!-- Barre de progression -->
+    <div id="progress-bar">
+        <div id="progress-fill"></div>
+    </div>
+
+    <!-- Scène AR -->
+    <a-scene 
+        mindar-image="
+            imageTargetSrc: ./targets.mind;
+            maxTrack: 1;
+            filterMinCF: 0.0001;
+            filterBeta: 0.01;
+            missTolerance: 20;
+            warmupTolerance: 3
+        "
+        color-space="sRGB" 
+        renderer="colorManagement: true, physicallyCorrectLights"
+        vr-mode-ui="enabled: false" 
+        device-orientation-permission-ui="enabled: false"
+        embedded
+    >
+        <!-- Assets -->
+        <a-assets>
+            <!-- Vidéo unique pour toutes les œuvres (test) -->
+            <video 
+                id="shared-video" 
+                src="https://res.cloudinary.com/dmgx02nlp/video/upload/v1770030665/WoodWideWeb_01_kj0sqr.mp4" 
+                preload="auto" 
+                loop 
+                crossorigin="anonymous" 
+                playsinline 
+                webkit-playsinline
+            ></video>
+        </a-assets>
+
+        <!-- Caméra -->
+        <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+        <!-- Œuvre 01 -->
+        <a-entity id="target-01" mindar-image-target="targetIndex: 0">
+            <a-video 
+                src="#shared-video" 
+                width="1" 
+                height="1" 
+                position="0 0 0"
+                smooth-transform="factor: 0.08"
+            ></a-video>
+        </a-entity>
+
+        <!-- Œuvre 02 -->
+        <a-entity id="target-02" mindar-image-target="targetIndex: 1">
+            <a-video 
+                src="#shared-video" 
+                width="1" 
+                height="1" 
+                position="0 0 0"
+                smooth-transform="factor: 0.08"
+            ></a-video>
+        </a-entity>
+
+        <!-- Œuvre 03 -->
+        <a-entity id="target-03" mindar-image-target="targetIndex: 2">
+            <a-video 
+                src="#shared-video" 
+                width="1" 
+                height="1" 
+                position="0 0 0"
+                smooth-transform="factor: 0.08"
+            ></a-video>
+        </a-entity>
+
+        <!-- Œuvre 04 -->
+        <a-entity id="target-04" mindar-image-target="targetIndex: 3">
+            <a-video 
+                src="#shared-video" 
+                width="1" 
+                height="1" 
+                position="0 0 0"
+                smooth-transform="factor: 0.08"
+            ></a-video>
+        </a-entity>
+
+        <!-- Œuvre 05 -->
+        <a-entity id="target-05" mindar-image-target="targetIndex: 4">
+            <a-video 
+                src="#shared-video" 
+                width="1" 
+                height="1" 
+                position="0 0 0"
+                smooth-transform="factor: 0.08"
+            ></a-video>
+        </a-entity>
+
+        <!-- Œuvre 06 -->
+        <a-entity id="target-06" mindar-image-target="targetIndex: 5">
+            <a-video 
+                src="#shared-video" 
+                width="1" 
+                height="1" 
+                position="0 0 0"
+                smooth-transform="factor: 0.08"
+            ></a-video>
+        </a-entity>
+
+        <!-- Œuvre 07 -->
+        <a-entity id="target-07" mindar-image-target="targetIndex: 6">
+            <a-video 
+                src="#shared-video" 
+                width="1" 
+                height="1" 
+                position="0 0 0"
+                smooth-transform="factor: 0.08"
+            ></a-video>
+        </a-entity>
+
+        <!-- Œuvre 08 -->
+        <a-entity id="target-08" mindar-image-target="targetIndex: 7">
+            <a-video 
+                src="#shared-video" 
+                width="1" 
+                height="1" 
+                position="0 0 0"
+                smooth-transform="factor: 0.08"
+            ></a-video>
+        </a-entity>
+
+        <!-- Œuvre 09 -->
+        <a-entity id="target-09" mindar-image-target="targetIndex: 8">
+            <a-video 
+                src="#shared-video" 
+                width="1" 
+                height="1" 
+                position="0 0 0"
+                smooth-transform="factor: 0.08"
+            ></a-video>
+        </a-entity>
+
+        <!-- Œuvre 10 -->
+        <a-entity id="target-10" mindar-image-target="targetIndex: 9">
+            <a-video 
+                src="#shared-video" 
+                width="1" 
+                height="1" 
+                position="0 0 0"
+                smooth-transform="factor: 0.08"
+            ></a-video>
+        </a-entity>
+
+        <!-- Œuvre 11 -->
+        <a-entity id="target-11" mindar-image-target="targetIndex: 10">
+            <a-video 
+                src="#shared-video" 
+                width="1" 
+                height="1" 
+                position="0 0 0"
+                smooth-transform="factor: 0.08"
+            ></a-video>
+        </a-entity>
+
+        <!-- Œuvre 12 -->
+        <a-entity id="target-12" mindar-image-target="targetIndex: 11">
+            <a-video 
+                src="#shared-video" 
+                width="1" 
+                height="1" 
+                position="0 0 0"
+                smooth-transform="factor: 0.08"
+            ></a-video>
+        </a-entity>
+
+        <!-- Œuvre 13 -->
+        <a-entity id="target-13" mindar-image-target="targetIndex: 12">
+            <a-video 
+                src="#shared-video" 
+                width="1" 
+                height="1" 
+                position="0 0 0"
+                smooth-transform="factor: 0.08"
+            ></a-video>
+        </a-entity>
+
+        <!-- Œuvre 14 -->
+        <a-entity id="target-14" mindar-image-target="targetIndex: 13">
+            <a-video 
+                src="#shared-video" 
+                width="1" 
+                height="1" 
+                position="0 0 0"
+                smooth-transform="factor: 0.08"
+            ></a-video>
+        </a-entity>
+
+        <!-- Œuvre 15 -->
+        <a-entity id="target-15" mindar-image-target="targetIndex: 14">
+            <a-video 
+                src="#shared-video" 
+                width="1" 
+                height="1" 
+                position="0 0 0"
+                smooth-transform="factor: 0.08"
+            ></a-video>
+        </a-entity>
+
+        <!-- Œuvre 16 -->
+        <a-entity id="target-16" mindar-image-target="targetIndex: 15">
+            <a-video 
+                src="#shared-video" 
+                width="1" 
+                height="1" 
+                position="0 0 0"
+                smooth-transform="factor: 0.08"
+            ></a-video>
+        </a-entity>
+
+        <!-- Œuvre 17 -->
+        <a-entity id="target-17" mindar-image-target="targetIndex: 16">
+            <a-video 
+                src="#shared-video" 
+                width="1" 
+                height="1" 
+                position="0 0 0"
+                smooth-transform="factor: 0.08"
+            ></a-video>
+        </a-entity>
+
+        <!-- Œuvre 18 -->
+        <a-entity id="target-18" mindar-image-target="targetIndex: 17">
+            <a-video 
+                src="#shared-video" 
+                width="1" 
+                height="1" 
+                position="0 0 0"
+                smooth-transform="factor: 0.08"
+            ></a-video>
+        </a-entity>
+
+        <!-- Œuvre 19 -->
+        <a-entity id="target-19" mindar-image-target="targetIndex: 18">
+            <a-video 
+                src="#shared-video" 
+                width="1" 
+                height="1" 
+                position="0 0 0"
+                smooth-transform="factor: 0.08"
+            ></a-video>
+        </a-entity>
+
+        <!-- Œuvre 20 -->
+        <a-entity id="target-20" mindar-image-target="targetIndex: 19">
+            <a-video 
+                src="#shared-video" 
+                width="1" 
+                height="1" 
+                position="0 0 0"
+                smooth-transform="factor: 0.08"
+            ></a-video>
+        </a-entity>
+
+        <!-- Œuvre 21 -->
+        <a-entity id="target-21" mindar-image-target="targetIndex: 20">
+            <a-video 
+                src="#shared-video" 
+                width="1" 
+                height="1" 
+                position="0 0 0"
+                smooth-transform="factor: 0.08"
+            ></a-video>
+        </a-entity>
+
+        <!-- Œuvre 22 -->
+        <a-entity id="target-22" mindar-image-target="targetIndex: 21">
+            <a-video 
+                src="#shared-video" 
+                width="1" 
+                height="1" 
+                position="0 0 0"
+                smooth-transform="factor: 0.08"
+            ></a-video>
+        </a-entity>
+
+        <!-- Œuvre 23 -->
+        <a-entity id="target-23" mindar-image-target="targetIndex: 22">
+            <a-video 
+                src="#shared-video" 
+                width="1" 
+                height="1" 
+                position="0 0 0"
+                smooth-transform="factor: 0.08"
+            ></a-video>
+        </a-entity>
+
+        <!-- Œuvre 24 -->
+        <a-entity id="target-24" mindar-image-target="targetIndex: 23">
+            <a-video 
+                src="#shared-video" 
+                width="1" 
+                height="1" 
+                position="0 0 0"
+                smooth-transform="factor: 0.08"
+            ></a-video>
+        </a-entity>
+    </a-scene>
+
+    <script>
+        // Système de debug visuel pour mobile
+        let debugOverlay;
+        let debugToggle;
+        let debugLogs = [];
+        const MAX_LOGS = 20;
+        
+        function debugLog(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            debugLogs.push(`[${timestamp}] ${message}`);
+            if (debugLogs.length > MAX_LOGS) {
+                debugLogs.shift();
+            }
+            if (debugOverlay) {
+                debugOverlay.innerHTML = debugLogs.map(log => 
+                    `<div class="log-line">${log}</div>`
+                ).join('');
+                debugOverlay.scrollTop = debugOverlay.scrollHeight;
+            }
+            console.log(message); // Toujours logger aussi dans la console
+        }
+        
+        // Composant de smoothing personnalisé pour réduire le jitter
+        AFRAME.registerComponent('smooth-transform', {
+            schema: {
+                factor: { type: 'number', default: 0.08 }
+            },
+            
+            init: function() {
+                this.targetPosition = new THREE.Vector3();
+                this.targetRotation = new THREE.Euler();
+                this.targetScale = new THREE.Vector3(1, 1, 1);
+                this.isFirstFrame = true;
+            },
+            
+            tick: function() {
+                const obj = this.el.object3D;
+                
+                if (this.isFirstFrame) {
+                    this.targetPosition.copy(obj.position);
+                    this.targetRotation.copy(obj.rotation);
+                    this.targetScale.copy(obj.scale);
+                    this.isFirstFrame = false;
+                    return;
+                }
+                
+                // Récupérer les valeurs cibles
+                const tempPos = obj.position.clone();
+                const tempRot = obj.rotation.clone();
+                
+                // Interpoler vers les valeurs cibles
+                this.targetPosition.lerp(tempPos, this.data.factor);
+                
+                // Pour la rotation, utiliser slerp
+                const currentQuat = new THREE.Quaternion().setFromEuler(this.targetRotation);
+                const targetQuat = new THREE.Quaternion().setFromEuler(tempRot);
+                currentQuat.slerp(targetQuat, this.data.factor);
+                this.targetRotation.setFromQuaternion(currentQuat);
+                
+                // Appliquer les valeurs lissées
+                obj.position.copy(this.targetPosition);
+                obj.rotation.copy(this.targetRotation);
+            }
+        });
+        
+        // Gestion des événements de détection avec vidéo partagée
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialiser le système de debug
+            debugOverlay = document.getElementById('debug-overlay');
+            debugToggle = document.getElementById('debug-toggle');
+            
+            debugToggle.addEventListener('click', () => {
+                debugOverlay.classList.toggle('active');
+            });
+            
+            debugLog('=== APPLICATION DÉMARRÉE ===');
+            
+            const loadingScreen = document.getElementById('loading-screen');
+            const viewfinder = document.getElementById('viewfinder');
+            const progressBar = document.getElementById('progress-bar');
+            const progressFill = document.getElementById('progress-fill');
+            const sceneEl = document.querySelector('a-scene');
+            
+            // Cacher l'écran de chargement quand l'AR est prêt
+            sceneEl.addEventListener('arReady', () => {
+                debugLog('MindAR prêt');
+                loadingScreen.classList.add('hidden');
+            });
+            
+            // Référence à la vidéo partagée
+            const sharedVideo = document.getElementById('shared-video');
+            
+            if (!sharedVideo) {
+                debugLog('ERREUR: Vidéo partagée introuvable!');
+                return;
+            }
+            
+            debugLog('Vidéo trouvée: ' + sharedVideo.src);
+            
+            // Compteur de détections pour debug
+            let detectionCount = 0;
+            
+            // Mettre à jour la barre de progression
+            function updateProgress() {
+                if (sharedVideo && !sharedVideo.paused && sharedVideo.duration > 0) {
+                    const progress = (sharedVideo.currentTime / sharedVideo.duration) * 100;
+                    progressFill.style.width = progress + '%';
+                    // Log toutes les 2 secondes seulement
+                    if (Math.floor(sharedVideo.currentTime) % 2 === 0 && sharedVideo.currentTime > 0) {
+                        debugLog(`Progression: ${progress.toFixed(0)}%`);
+                    }
+                } else {
+                    // Debug : pourquoi updateProgress ne met pas à jour ?
+                    if (isTargetFound && sharedVideo) {
+                        if (sharedVideo.paused) {
+                            debugLog('⚠️ updateProgress: vidéo en PAUSE');
+                        } else if (sharedVideo.duration <= 0) {
+                            debugLog('⚠️ updateProgress: duration invalide');
+                        }
+                    }
+                }
+            }
+            
+            // Écouter les changements de temps de la vidéo
+            sharedVideo.addEventListener('timeupdate', updateProgress);
+            
+            // Variable pour suivre l'état de détection
+            let isTargetFound = false;
+            let currentVideoElement = null;
+            let progressBarHideTimeout = null; // Timeout pour retarder le masquage de la barre
+            
+            // Gestion de la lecture/pause vidéo pour chaque œuvre
+            for (let i = 1; i <= 24; i++) {
+                const targetId = `target-${String(i).padStart(2, '0')}`;
+                const target = document.getElementById(targetId);
+                
+                if (target) {
+                    // Récupérer l'élément vidéo dans ce target
+                    const videoElement = target.querySelector('a-video');
+                    
+                    if (!videoElement) {
+                        debugLog(`ERREUR: VideoElement ${i} introuvable!`);
+                        continue;
+                    }
+                    
+                    // Initialiser la vidéo invisible
+                    videoElement.setAttribute('opacity', 0);
+                    videoElement.setAttribute('material', 'opacity: 0');
+                    
+                    // Quand l'image est détectée
+                    target.addEventListener('targetFound', () => {
+                        detectionCount++;
+                        debugLog(`>>> DÉTECTION #${detectionCount} - Œuvre ${i}`);
+                        isTargetFound = true;
+                        currentVideoElement = videoElement;
+                        
+                        // IMPORTANT : Annuler tout timeout de masquage de barre en cours
+                        if (progressBarHideTimeout) {
+                            clearTimeout(progressBarHideTimeout);
+                            progressBarHideTimeout = null;
+                            debugLog('⚡ Timeout masquage barre ANNULÉ');
+                        }
+                        
+                        // 1. Masquer le viseur
+                        viewfinder.classList.add('hidden');
+                        debugLog('Viseur masqué');
+                        
+                        // 2. Afficher la barre de progression (FORCER)
+                        progressBar.classList.add('active');
+                        progressBar.style.display = 'block'; // FORCER avec style direct
+                        progressFill.style.width = '0%';
+                        // Vérifier que la classe est bien ajoutée
+                        const hasActive = progressBar.classList.contains('active');
+                        const displayStyle = window.getComputedStyle(progressBar).display;
+                        debugLog(`Barre FORCÉE: active=${hasActive}, display=${displayStyle}`);
+                        
+                        // 3. Afficher la vidéo immédiatement
+                        videoElement.setAttribute('opacity', 1);
+                        videoElement.setAttribute('material', 'opacity: 1');
+                        debugLog('Vidéo opacité = 1');
+                        
+                        // 4. RESET et LECTURE de la vidéo avec délai
+                        try {
+                            // Reset immédiat
+                            debugLog('Reset vidéo...');
+                            sharedVideo.pause();
+                            sharedVideo.currentTime = 0;
+                            progressFill.style.width = '0%';
+                            
+                            // Attendre un peu plus longtemps pour être sûr que le reset est pris en compte
+                            setTimeout(() => {
+                                debugLog('Tentative de lecture...');
+                                
+                                // Vérifier l'état avant play
+                                debugLog(`ReadyState: ${sharedVideo.readyState}, Paused: ${sharedVideo.paused}`);
+                                
+                                sharedVideo.play()
+                                    .then(() => {
+                                        debugLog('✓ Vidéo lancée OK');
+                                        // Vérifier immédiatement après
+                                        setTimeout(() => {
+                                            debugLog(`Vérif: Paused=${sharedVideo.paused}, Time=${sharedVideo.currentTime.toFixed(2)}s`);
+                                            
+                                            // Vérifier à nouveau la barre
+                                            const stillActive = progressBar.classList.contains('active');
+                                            const stillDisplay = window.getComputedStyle(progressBar).display;
+                                            debugLog(`Barre après play: active=${stillActive}, display=${stillDisplay}`);
+                                            
+                                            // VÉRIFICATIONS SUPPLÉMENTAIRES pour détecter disparition
+                                            setTimeout(() => {
+                                                const check500 = progressBar.classList.contains('active');
+                                                const display500 = window.getComputedStyle(progressBar).display;
+                                                debugLog(`[500ms] Barre: active=${check500}, display=${display500}`);
+                                                if (!check500 || display500 === 'none') {
+                                                    debugLog('⚠️⚠️ BARRE DISPARUE à 500ms ! Remise FORCÉE');
+                                                    progressBar.classList.add('active');
+                                                    progressBar.style.display = 'block';
+                                                }
+                                            }, 500);
+                                            
+                                            setTimeout(() => {
+                                                const check1000 = progressBar.classList.contains('active');
+                                                const display1000 = window.getComputedStyle(progressBar).display;
+                                                debugLog(`[1000ms] Barre: active=${check1000}, display=${display1000}`);
+                                                if (!check1000 || display1000 === 'none') {
+                                                    debugLog('⚠️⚠️ BARRE DISPARUE à 1000ms ! Remise FORCÉE');
+                                                    progressBar.classList.add('active');
+                                                    progressBar.style.display = 'block';
+                                                }
+                                            }, 1000);
+                                            
+                                            // Si la vidéo est toujours en pause après 200ms, forcer encore
+                                            if (sharedVideo.paused) {
+                                                debugLog('⚠️ Vidéo encore en pause, nouvelle tentative...');
+                                                sharedVideo.play().catch(err => {
+                                                    debugLog('✗ 2ème tentative échouée: ' + err.message);
+                                                });
+                                            }
+                                        }, 200);
+                                    })
+                                    .catch(err => {
+                                        debugLog('✗ ERREUR play: ' + err.message);
+                                        // Réessayer après délai plus long
+                                        setTimeout(() => {
+                                            debugLog('Nouvelle tentative après erreur...');
+                                            sharedVideo.play().catch(err2 => {
+                                                debugLog('✗ Échec définitif: ' + err2.message);
+                                            });
+                                        }, 300);
+                                    });
+                            }, 100); // Augmenté à 100ms
+                            
+                        } catch(e) {
+                            debugLog('✗ EXCEPTION: ' + e.message);
+                        }
+                    });
+                    
+                    // Quand l'image est perdue
+                    target.addEventListener('targetLost', () => {
+                        debugLog(`<<< PERTE - Œuvre ${i}`);
+                        isTargetFound = false;
+                        currentVideoElement = null;
+                        
+                        // Cacher la vidéo immédiatement
+                        videoElement.setAttribute('opacity', 0);
+                        videoElement.setAttribute('material', 'opacity: 0');
+                        
+                        // Réafficher le viseur
+                        viewfinder.classList.remove('hidden');
+                        
+                        // Masquer la barre de progression AVEC DÉLAI
+                        // (au cas où une nouvelle détection arrive juste après)
+                        const hadActive = progressBar.classList.contains('active');
+                        debugLog(`Barre: avant perte active=${hadActive}`);
+                        
+                        // Annuler l'ancien timeout s'il existe
+                        if (progressBarHideTimeout) {
+                            clearTimeout(progressBarHideTimeout);
+                        }
+                        
+                        // Programmer le masquage dans 300ms
+                        progressBarHideTimeout = setTimeout(() => {
+                            debugLog(`🔔 TIMEOUT EXÉCUTÉ (300ms écoulées)`);
+                            // Ne masquer que si aucune nouvelle détection n'a eu lieu
+                            if (!isTargetFound) {
+                                progressBar.classList.remove('active');
+                                progressBar.style.display = ''; // Retirer aussi le style inline
+                                const hasActiveAfter = progressBar.classList.contains('active');
+                                const displayAfter = window.getComputedStyle(progressBar).display;
+                                debugLog(`✓✓ BARRE RETIRÉE: active=${hasActiveAfter}, display=${displayAfter}`);
+                            } else {
+                                debugLog('⚡⚡ Barre CONSERVÉE (isTargetFound=true)');
+                            }
+                            progressBarHideTimeout = null;
+                        }, 300);
+                        
+                        debugLog('Barre: masquage programmé dans 300ms');
+                        
+                        // NE PAS toucher à sharedVideo ici !
+                        // Le reset sera fait au prochain targetFound
+                        debugLog('Vidéo cachée (pas de pause)');
+                    });
+                }
+            }
+            
+            // Logs périodiques de l'état vidéo
+            setInterval(() => {
+                if (isTargetFound && sharedVideo) {
+                    debugLog(`État: paused=${sharedVideo.paused}, time=${sharedVideo.currentTime.toFixed(1)}s/${sharedVideo.duration.toFixed(1)}s`);
+                }
+            }, 3000);
+        });
+    </script>
+</body>
+</html>
